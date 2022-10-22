@@ -59,15 +59,20 @@ MyInMemoryFS::~MyInMemoryFS() {
 
 // Definitions of private methods here
 
-bool MyInMemoryFS::fileExists(const char *file_name) {
+// Check if file with file_name exists
+// \param [in] file_name File name to check.
+// \return index of MyFsFileInfo if file exists, otherwise -1.
+int MyInMemoryFS::fileExists(const char *file_name) {
 	for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
 		if (strcmp(files[i].name, file_name) == 0)
-			return true;
+			return i;
 	}
 	// Iterated through all file entries and file was not found
-	return false;
+	return -1;
 }
 
+// Get a free slot which doesn't have a file stored
+// \return index of MyFsFileInfo if free slot is found, otherwise -1.
 int MyInMemoryFS::getFreeSlot(void) {
 	for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
 		if (files[i].name[0] == '\0') {
@@ -76,6 +81,22 @@ int MyInMemoryFS::getFreeSlot(void) {
 		}
 	}
 	return -1;
+}
+
+// Sanitize path
+// \param [in] path Path to be sanitized.
+// \return 0 on success, -ERRNO on failure.
+int MyInMemoryFS::checkPath(const char *path) {
+	size_t path_len;
+
+	if (path == NULL)
+		return -EINVAL;
+
+	path_len = strnlen(path, NAME_LENGTH);
+	if (path_len == 0 || path_len == NAME_LENGTH)
+		return -EINVAL;
+
+	return 0;
 }
 
 // FUSE callbacks below this line
@@ -89,8 +110,8 @@ int MyInMemoryFS::getFreeSlot(void) {
 /// \param [in] dev Can be ignored.
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
+	int ret;
 	char file_name[NAME_LENGTH];
-	size_t path_len;
 	int index;
 	MyFsFileInfo *new_file;
 	struct timespec t;
@@ -102,17 +123,14 @@ int MyInMemoryFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 	if (clock_gettime(CLOCK_MONOTONIC, &t))
 		return -EFAULT;
 
-	if (path == NULL)
-		return -EINVAL;
-
-	path_len = strnlen(path, NAME_LENGTH);
-	if (path_len == 0 || path_len == NAME_LENGTH)
-		return -EINVAL;
+	ret = checkPath(path);
+	if (ret)
+		return ret;
 
 	strncpy(file_name, path, NAME_LENGTH - 1);
 	file_name[NAME_LENGTH - 1] = '\0';
 
-	if (fileExists(file_name))
+	if (fileExists(file_name) != -1)
 		return -EEXIST;
 
 	index = getFreeSlot();
@@ -138,9 +156,34 @@ int MyInMemoryFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 /// \param [in] path Name of the file, starting with "/".
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseUnlink(const char *path) {
+	int ret, index;
+	char file_name[NAME_LENGTH];
+	MyFsFileInfo *file_ptr;
+
     LOGM();
 
-    // TODO: [PART 1] Implement this!
+    // TODO: [PART 1] Implement this! Implemented by slno1011
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+
+	strncpy(file_name, path, NAME_LENGTH - 1);
+	file_name[NAME_LENGTH - 1] = '\0';
+
+	index = fileExists(file_name);
+	if (index == -1)
+		return -ENOENT;
+
+	file_ptr = &files[index];
+	if (file_ptr->data)
+		free(file_ptr->data);
+	/* Setting the first byte of name to '\0' would
+	 * be enough, but in this case we are dealing with
+	 * a structure which has user/group ids and the
+	 * access mode saved. It's good security practice
+	 * to override them with 0.
+	 */
+	memset(file_ptr, 0, sizeof(MyFsFileInfo));
 
     RETURN(0);
 }
