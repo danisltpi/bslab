@@ -16,4 +16,10 @@
 
 // TODO: Add structures of your file system here
 
+struct MyFsFileInfo {
+	char name[NAME_LENGTH];
+	size_t size;
+	char *data;
+};
+
 #endif /* myfs_structs_h */
