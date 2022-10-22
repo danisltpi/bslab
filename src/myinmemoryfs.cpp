@@ -45,6 +45,7 @@ MyInMemoryFS::MyInMemoryFS() : MyFS() {
 
     // TODO: [PART 1] Add your constructor code here
 	files = (MyFsFileInfo *)malloc(sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
+	memset(files, 0, sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
 }
 
 /// @brief Destructor of the in-memory file system class.
@@ -56,6 +57,29 @@ MyInMemoryFS::~MyInMemoryFS() {
 	free(files);
 }
 
+// Definitions of private methods here
+
+bool MyInMemoryFS::fileExists(const char *file_name) {
+	for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+		if (strcmp(files[i].name, file_name) == 0)
+			return true;
+	}
+	// Iterated through all file entries and file was not found
+	return false;
+}
+
+int MyInMemoryFS::getFreeSlot(void) {
+	for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+		if (files[i].name[0] == '\0') {
+			// Empty name, so entry is free
+			return i;
+		}
+	}
+	return -1;
+}
+
+// FUSE callbacks below this line
+
 /// @brief Create a new file.
 ///
 /// Create a new file with given name and permissions.
@@ -65,9 +89,44 @@ MyInMemoryFS::~MyInMemoryFS() {
 /// \param [in] dev Can be ignored.
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
+	char file_name[NAME_LENGTH];
+	size_t path_len;
+	int index;
+	MyFsFileInfo *new_file;
+	struct timespec t;
+
     LOGM();
 
-    // TODO: [PART 1] Implement this!
+    // TODO: [PART 1] Implement this! Implemented by slno1011
+
+	if (clock_gettime(CLOCK_MONOTONIC, &t))
+		return -EFAULT;
+
+	if (path == NULL)
+		return -EINVAL;
+
+	path_len = strnlen(path, NAME_LENGTH);
+	if (path_len == 0 || path_len == NAME_LENGTH)
+		return -EINVAL;
+
+	strncpy(file_name, path, NAME_LENGTH - 1);
+	file_name[NAME_LENGTH - 1] = '\0';
+
+	if (fileExists(file_name))
+		return -EEXIST;
+
+	index = getFreeSlot();
+	if (index == -1)
+		return -ENOMEM;
+
+	new_file = &files[index];
+	strncpy(new_file->name, file_name, NAME_LENGTH - 1);
+	new_file->size = 0; /* size = 0, no data allocated yet */
+	new_file->uid = getuid();
+	new_file->gid = getgid();
+	new_file->mode = mode;
+	new_file->atime = new_file->mtime = new_file->ctime = t;
+	new_file->data = NULL;
 
     RETURN(0);
 }
