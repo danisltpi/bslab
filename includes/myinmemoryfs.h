@@ -22,6 +22,7 @@ public:
     static MyInMemoryFS *Instance();
 
     // TODO: [PART 1] Add attributes of your file system here
+	MyFsFileInfo *files;
 
     MyInMemoryFS();
     ~MyInMemoryFS();

@@ -44,7 +44,7 @@
 MyInMemoryFS::MyInMemoryFS() : MyFS() {
 
     // TODO: [PART 1] Add your constructor code here
-
+	files = (MyFsFileInfo *)malloc(sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
 }
 
 /// @brief Destructor of the in-memory file system class.
@@ -53,7 +53,7 @@ MyInMemoryFS::MyInMemoryFS() : MyFS() {
 MyInMemoryFS::~MyInMemoryFS() {
 
     // TODO: [PART 1] Add your cleanup code here
-
+	free(files);
 }
 
 /// @brief Create a new file.
