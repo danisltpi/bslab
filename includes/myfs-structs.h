@@ -19,6 +19,11 @@
 struct MyFsFileInfo {
 	char name[NAME_LENGTH];
 	size_t size;
+	uid_t uid;
+	gid_t gid;
+	struct timespec atime;
+	struct timespec mtime;
+	struct timespec ctime;
 	char *data;
 };
 
