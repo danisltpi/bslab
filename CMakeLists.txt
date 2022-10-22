@@ -11,7 +11,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake" ${CMAKE_MODULE_PATH})
 
 include_directories(includes)
 
-add_definitions("-Wall -DFUSE_USE_VERSION=26")
+add_definitions("-Wall -DFUSE_USE_VERSION=26 -D_FILE_OFFSET_BITS=64")
 
 add_executable(mount.myfs src/blockdevice.cpp
         src/myfs.cpp
