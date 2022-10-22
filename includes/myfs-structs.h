@@ -21,6 +21,7 @@ struct MyFsFileInfo {
 	size_t size;
 	uid_t uid;
 	gid_t gid;
+	mode_t mode;
 	struct timespec atime;
 	struct timespec mtime;
 	struct timespec ctime;
