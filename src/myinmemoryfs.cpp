@@ -62,7 +62,7 @@ MyInMemoryFS::~MyInMemoryFS() {
 // Check if file with file_name exists
 // \param [in] file_name File name to check.
 // \return index of MyFsFileInfo if file exists, otherwise -1.
-int MyInMemoryFS::fileExists(const char *file_name) {
+int MyInMemoryFS::getFileIndex(const char *file_name) {
 	for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
 		if (strcmp(files[i].name, file_name) == 0)
 			return i;
@@ -130,7 +130,7 @@ int MyInMemoryFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 	strncpy(file_name, path, NAME_LENGTH - 1);
 	file_name[NAME_LENGTH - 1] = '\0';
 
-	if (fileExists(file_name) != -1)
+	if (getFileIndex(file_name) != -1)
 		return -EEXIST;
 
 	index = getFreeSlot();
@@ -170,7 +170,8 @@ int MyInMemoryFS::fuseUnlink(const char *path) {
 	strncpy(file_name, path, NAME_LENGTH - 1);
 	file_name[NAME_LENGTH - 1] = '\0';
 
-	index = fileExists(file_name);
+	index = getFileIndex
+(file_name);
 	if (index == -1)
 		return -ENOENT;
 

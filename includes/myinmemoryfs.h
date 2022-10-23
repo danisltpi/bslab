@@ -19,7 +19,7 @@ protected:
     // BlockDevice blockDevice;
 
 private:
-	int fileExists(const char *file_name);
+	int getFileIndex(const char *file_name);
 	int checkPath(const char *file_name);
 	int getFreeSlot(void);
 
