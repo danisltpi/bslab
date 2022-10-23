@@ -28,6 +28,7 @@ public:
 
     // TODO: [PART 1] Add attributes of your file system here
 	MyFsFileInfo *files;
+    int numberOfOpenFiles;
 
     MyInMemoryFS();
     ~MyInMemoryFS();

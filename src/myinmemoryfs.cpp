@@ -43,9 +43,12 @@
 /// You may add your own constructor code here.
 MyInMemoryFS::MyInMemoryFS() : MyFS() {
 
+
     // TODO: [PART 1] Add your constructor code here
 	files = (MyFsFileInfo *)malloc(sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
 	memset(files, 0, sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
+
+    numberOfOpenFiles = 0; 
 }
 
 /// @brief Destructor of the in-memory file system class.
@@ -170,8 +173,7 @@ int MyInMemoryFS::fuseUnlink(const char *path) {
 	strncpy(file_name, path, NAME_LENGTH - 1);
 	file_name[NAME_LENGTH - 1] = '\0';
 
-	index = getFileIndex
-(file_name);
+	index = getFileIndex(file_name);
 	if (index == -1)
 		return -ENOENT;
 
@@ -298,9 +300,30 @@ int MyInMemoryFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
 /// \param [out] fileInfo Can be ignored in Part 1
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
-    LOGM();
+	int ret, index;
+	char file_name[NAME_LENGTH];
+	MyFsFileInfo *file_ptr;
 
-    // TODO: [PART 1] Implement this!
+    LOGM();
+    // TODO: [PART 1] Implement this! implemented by danisltpi
+
+    if (numberOfOpenFiles == NUM_OPEN_FILES) {
+        return -EMFILE;
+    } 
+
+	ret = checkPath(path);
+	if (ret)
+		return ret; 
+
+	strncpy(file_name, path, NAME_LENGTH - 1);
+	file_name[NAME_LENGTH - 1] = '\0';
+	index = getFileIndex(file_name);
+	if (index == -1)
+		return -ENOENT;   
+
+    // file handle uses index + 1 (because index starts at 0) of the file so if it is not set the file is not open;
+    fileInfo->fh = index + 1;
+    numberOfOpenFiles++;
 
     RETURN(0);
 }
