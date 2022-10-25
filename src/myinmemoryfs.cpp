@@ -47,7 +47,6 @@ MyInMemoryFS::MyInMemoryFS() : MyFS() {
     // TODO: [PART 1] Add your constructor code here
 	files = (MyFsFileInfo *)malloc(sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
 	memset(files, 0, sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
-
     numberOfOpenFiles = 0; 
 }
 
@@ -368,28 +367,28 @@ int MyInMemoryFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 /// \return The Number of bytes read on success. This may be less than size if the file does not contain sufficient bytes.
 /// -ERRNO on failure.
 int MyInMemoryFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
+    int ret, index;
+    char file_name[NAME_LENGTH];
+    size_t len; 
     LOGM();
 
     // TODO: [PART 1] Implement this!
 
     LOGF( "--> Trying to read %s, %lu, %lu\n", path, (unsigned long) offset, size );
+ 
+	ret = checkPath(path);
+	if (ret)
+		return ret; 
+	strncpy(file_name, path, NAME_LENGTH - 1);
+	file_name[NAME_LENGTH - 1] = '\0';
+	index = getFileIndex(file_name);
+	if (index == -1)
+		return -ENOENT;
+    
+    MyFsFileInfo* file = &files[index];
+    char *selectedText = file->data;
 
-    char file54Text[] = "Hello World From File54!\n";
-    char file349Text[] = "Hello World From File349!\n";
-    char *selectedText = NULL;
-
-    // ... //
-
-    if ( strcmp( path, "/file54" ) == 0 )
-        selectedText = file54Text;
-    else if ( strcmp( path, "/file349" ) == 0 )
-        selectedText = file349Text;
-    else
-        return -ENOENT;
-
-    // ... //
-
-    memcpy( buf, selectedText + offset, size );
+    memcpy( buf, selectedText + offset, size);
 
     RETURN((int) (strlen( selectedText ) - offset));
 }

@@ -18,11 +18,11 @@ class MyInMemoryFS : public MyFS {
 protected:
     // BlockDevice blockDevice;
 
+
 private:
 	int getFileIndex(const char *file_name);
 	int checkPath(const char *file_name);
 	int getFreeSlot(void);
-
 public:
     static MyInMemoryFS *Instance();
 
