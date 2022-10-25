@@ -491,15 +491,19 @@ int MyInMemoryFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t fille
 
     // TODO: [PART 1] Implement this!
 
+	int ret = checkPath(path);
+	if (ret)
+		return ret;
+
     LOGF( "--> Getting The List of Files of %s\n", path );
 
     filler( buf, ".", NULL, 0 ); // Current Directory
     filler( buf, "..", NULL, 0 ); // Parent Directory
 
-    if ( strcmp( path, "/" ) == 0 ) // If the user is trying to show the files/directories of the root directory show the following
-    {
-        filler( buf, "file54", NULL, 0 );
-        filler( buf, "file349", NULL, 0 );
+    if ( strcmp( path, "/") == 0 ) {
+        for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+            filler( buf, files[i].data, NULL, 0);
+        }
     }
 
     RETURN(0);
