@@ -372,7 +372,7 @@ int MyInMemoryFS::fuseRead(const char *path, char *buf, size_t size, off_t offse
     size_t len; 
     LOGM();
 
-    // TODO: [PART 1] Implement this!
+    // TODO: [PART 1] Implement this! // implemented by danisltpi
 
     LOGF( "--> Trying to read %s, %lu, %lu\n", path, (unsigned long) offset, size );
  
@@ -423,10 +423,22 @@ int MyInMemoryFS::fuseWrite(const char *path, const char *buf, size_t size, off_
 /// \param [in] fileInfo Can be ignored in Part 1 .
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
+    int ret, index;
+    char file_name[NAME_LENGTH];
     LOGM();
 
-    // TODO: [PART 1] Implement this!
+    // TODO: [PART 1] Implement this! // implemented by danisltpi
+	ret = checkPath(path);
+	if (ret)
+		return ret; 
+	strncpy(file_name, path, NAME_LENGTH - 1);
+	file_name[NAME_LENGTH - 1] = '\0';
+	index = getFileIndex(file_name);
+	if (index == -1)
+		return -ENOENT;
 
+    fileInfo->fh = -1;
+    numberOfOpenFiles--;
     RETURN(0);
 }
 
