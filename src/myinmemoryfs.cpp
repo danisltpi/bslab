@@ -301,10 +301,11 @@ int MyInMemoryFS::fuseChmod(const char *path, mode_t mode) {
 /// \param [in] gid New group id.
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
-    LOGM();
+    LOGF( "\tChange of the User and group ID of %s requested\n", path );
+    if(getFileIndex(path))
+        return -ENOENT;
 
     // TODO: [PART 1] Implement this!
-
     RETURN(0);
 }
 
@@ -336,10 +337,10 @@ int MyInMemoryFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 	file_name[NAME_LENGTH - 1] = '\0';
 	index = getFileIndex(file_name);
 	if (index == -1)
-		return -ENOENT;   
+		return -ENOENT;
 
-    // file handle uses index + 1 (because index starts at 0) of the file so if it is not set the file is not open;
-    fileInfo->fh = index + 1;
+    // file handle uses index (because index starts at 0) of the file so if it is not set the file is not open;
+    fileInfo->fh = index;
     numberOfOpenFiles++;
 
     RETURN(0);
