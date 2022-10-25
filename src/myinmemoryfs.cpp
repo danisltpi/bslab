@@ -113,14 +113,11 @@ int MyInMemoryFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 	char file_name[NAME_LENGTH];
 	int index;
 	MyFsFileInfo *new_file;
-	struct timespec t;
+	time_t time_now;
 
     LOGM();
 
     // TODO: [PART 1] Implement this! Implemented by slno1011
-
-	if (clock_gettime(CLOCK_MONOTONIC, &t))
-		return -EFAULT;
 
 	ret = checkPath(path);
 	if (ret)
@@ -136,13 +133,17 @@ int MyInMemoryFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 	if (index == -1)
 		return -ENOMEM;
 
+	time_now = time(NULL);
+	if (time_now == -1)
+		return -EFAULT;
+
 	new_file = &files[index];
 	strncpy(new_file->name, file_name, NAME_LENGTH - 1);
 	new_file->size = 0; /* size = 0, no data allocated yet */
 	new_file->uid = getuid();
 	new_file->gid = getgid();
 	new_file->mode = mode;
-	new_file->atime = new_file->mtime = new_file->ctime = t;
+	new_file->atime = new_file->mtime = new_file->ctime = time_now;
 	new_file->data = NULL;
 
     RETURN(0);
@@ -228,11 +229,12 @@ int MyInMemoryFS::fuseRename(const char *path, const char *newpath) {
 /// \param [out] statbuf Structure containing the meta data, for details type "man 2 stat" in a terminal.
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseGetattr(const char *path, struct stat *statbuf) {
-    LOGM();
+	int ret;
+	MyFsFileInfo *file;
 
-    // TODO: [PART 1] Implement this!
+	LOGM();
 
-    LOGF( "\tAttributes of %s requested\n", path );
+    // TODO: [PART 1] Implement this! Implemented by slno1011
 
     // GNU's definitions of the attributes (http://www.gnu.org/software/libc/manual/html_node/Attribute-Meanings.html):
     // 		st_uid: 	The user ID of the file’s owner.
@@ -248,29 +250,40 @@ int MyInMemoryFS::fuseGetattr(const char *path, struct stat *statbuf) {
     //		st_size:	This specifies the size of a regular file in bytes. For files that are really devices this field
     //		            isn’t usually meaningful. For symbolic links this specifies the length of the file name the link
     //		            refers to.
+	statbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
+	statbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
 
-    statbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
-    statbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
-    statbuf->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
-    statbuf->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
-
-    int ret= 0;
-
-    if ( strcmp( path, "/" ) == 0 )
-    {
+    if( strcmp( path, "/" ) == 0) {
+    	LOGF("\tAttributes of dir %s requested\n", path);
         statbuf->st_mode = S_IFDIR | 0755;
         statbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
-    }
-    else if ( strcmp( path, "/file54" ) == 0 || ( strcmp( path, "/file349" ) == 0 ) )
-    {
+		statbuf->st_atime = time(NULL); // The last "a"ccess of the file/directory is right now
+		/* I don't think modification time should be now */
+		statbuf->st_mtime = time(NULL); // The last "m"odification of the file/directory is right now
+
+    } else {
+		LOGF("\tAttributes of normal file %s requested\n", path);
+		ret = checkPath(path);
+		if (ret)
+			return ret;
+
+		ret = getFileIndex(path);
+		if (ret == -1)
+			return -ENOENT;
+
+		file = &files[ret];
+		/* access time is now */
+		file->atime = time(NULL);
+
         statbuf->st_mode = S_IFREG | 0644;
         statbuf->st_nlink = 1;
-        statbuf->st_size = 1024;
-    }
-    else
-        ret= -ENOENT;
+        statbuf->st_size = file->size;
+		statbuf->st_ctime = file->ctime;
+		statbuf->st_mtime = file->mtime;
+		statbuf->st_atime = file->atime;
+	}
 
-    RETURN(ret);
+    RETURN(0);
 }
 
 /// @brief Change file permissions.
@@ -307,6 +320,7 @@ int MyInMemoryFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
     MyFsFileInfo* file = &files[fileIndex];
     file->uid = uid;
     file->gid = gid;
+
     RETURN(0);
 }
 
@@ -338,6 +352,8 @@ int MyInMemoryFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 	index = getFileIndex(file_name);
 	if (index == -1)
 		return -ENOENT;
+
+	LOGF("\topened %s, index = %d\n", path, index);
 
     // file handle uses index (because index starts at 0) of the file so if it is not set the file is not open;
     fileInfo->fh = index;
@@ -498,7 +514,10 @@ int MyInMemoryFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t fille
 
     if ( strcmp( path, "/") == 0 ) {
         for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
-            filler( buf, files[i].data, NULL, 0);
+			if (files[i].name[0] != '\0') {
+            	filler(buf, files[i].name + 1, NULL, 0);
+				LOGF("\t\t%s\n", files[i].name);
+			}
         }
     }
 

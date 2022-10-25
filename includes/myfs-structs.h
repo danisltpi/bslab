@@ -22,9 +22,9 @@ struct MyFsFileInfo {
 	uid_t uid;
 	gid_t gid;
 	mode_t mode;
-	struct timespec atime;
-	struct timespec mtime;
-	struct timespec ctime;
+	time_t atime;
+	time_t mtime;
+	time_t ctime;
 	char *data;
 };
 
