@@ -366,7 +366,6 @@ int MyInMemoryFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 int MyInMemoryFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     int ret, index;
     char file_name[NAME_LENGTH];
-    size_t len; 
     LOGM();
 
     // TODO: [PART 1] Implement this! // implemented by danisltpi
