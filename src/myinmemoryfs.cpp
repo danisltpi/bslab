@@ -45,8 +45,6 @@ MyInMemoryFS::MyInMemoryFS() : MyFS() {
 
 
     // TODO: [PART 1] Add your constructor code here
-	files = (MyFsFileInfo *)malloc(sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
-	memset(files, 0, sizeof(MyFsFileInfo) * NUM_DIR_ENTRIES);
     numberOfOpenFiles = 0; 
 }
 
@@ -56,7 +54,6 @@ MyInMemoryFS::MyInMemoryFS() : MyFS() {
 MyInMemoryFS::~MyInMemoryFS() {
 
     // TODO: [PART 1] Add your cleanup code here
-	free(files);
 }
 
 // Definitions of private methods here
