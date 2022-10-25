@@ -563,7 +563,42 @@ int MyInMemoryFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo)
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseTruncate(const char *path, off_t newSize)
 {
+	int ret, index;
+	char *buf;
+	bool copyNewSize;
+	size_t copySize;
+	MyFsFileInfo *file;
+
 	LOGM();
+
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+
+	index = getFileIndex(path);
+	if (index == -1)
+		return -ENOENT;
+
+	file = &files[index];
+	if (file->data == NULL || file->size == 0)
+		return -ENOENT;
+
+	if (file->size == (size_t)newSize)
+		return 0;
+	else if (file->size > (size_t)newSize)
+		copyNewSize = true;
+	else
+		copyNewSize = false;
+
+	buf = (char *)malloc(newSize);
+	if (buf == NULL)
+		return -ENOMEM;
+
+	copySize = (copyNewSize) ? newSize : file->size;
+	memcpy(buf, file->data, copySize);
+	free(file->data);
+	file->data = buf;
+	file->size = copySize;
 
 	// TODO: [PART 1] Implement this!
 
