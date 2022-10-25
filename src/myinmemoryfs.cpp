@@ -229,7 +229,7 @@ int MyInMemoryFS::fuseRename(const char *path, const char *newpath)
 	}
 	else
 	{
-		return -ERRNO;
+		return -ENOENT;
 	}
 
 	return 0;
