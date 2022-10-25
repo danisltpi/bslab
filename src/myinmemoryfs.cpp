@@ -451,11 +451,79 @@ int MyInMemoryFS::fuseRead(const char *path, char *buf, size_t size,
 int MyInMemoryFS::fuseWrite(const char *path, const char *buf, size_t size,
 														off_t offset, struct fuse_file_info *fileInfo)
 {
+	int ret, index;
+	uintptr_t file_start, file_end, write_start;
+	size_t alloc_size;
+	char *alloc_buf;
+	time_t time_now;
+	MyFsFileInfo *file;
+
+	// TODO: [PART 1] Implement this! Implemented by slno1011
+	// WIP, Has to be tested thoroughly
 	LOGM();
 
-	// TODO: [PART 1] Implement this!
+	LOGF("write: path: %s, buf: %s, size: %lu, offset: %ld",
+		path, buf, size, offset);
 
-	RETURN(0);
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+
+	index = getFileIndex(path);
+	if (index == -1)
+		return -ENOENT;
+
+	file = &files[index];
+
+	file_start = (uintptr_t)file->data;
+	file_end = file_start + file->size;
+	write_start = file_start + offset;
+
+	if (file->data == NULL) {
+		/* no data allocated yet, allocate it now */
+		alloc_size = offset + size;
+		file->data = (char *)malloc(alloc_size);
+		if (file->data == NULL)
+			return -ENOMEM;
+
+		memset(file->data, 0, alloc_size);
+		file->size = alloc_size;
+	} else if (offset == 0) {
+		/* file->data is already allocated, but offset is 0.
+		 * The default UNIX behavior in this case is to overwrite the file.
+		 */
+		free(file->data);
+		file->data = NULL;
+		file->size = 0;
+
+		alloc_size = offset + size;
+		alloc_buf = (char *)malloc(alloc_size);
+		if (alloc_buf == NULL)
+			return -ENOMEM;
+
+		file->data = alloc_buf;
+		file->size = size;
+	} else if ((write_start + size) > file_end) {
+		alloc_size = offset + size;
+		alloc_buf = (char *)malloc(alloc_size);
+		if (alloc_buf == NULL)
+			return -ENOMEM;
+
+		memset(alloc_buf, 0, alloc_size);
+		memcpy(alloc_buf, file->data, file->size);
+
+		free(file->data);
+		file->data = alloc_buf;
+		file->size = alloc_size;
+	}
+
+	memcpy(file->data + offset, buf, size);
+
+	/* do we have to check the return value? */
+	time_now = time(NULL);
+	file->atime = file->mtime = time_now;
+
+	return size;
 }
 
 /// @brief Close a file.
