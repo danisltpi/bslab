@@ -203,7 +203,24 @@ int MyInMemoryFS::fuseUnlink(const char *path) {
 int MyInMemoryFS::fuseRename(const char *path, const char *newpath) {
     LOGM();
 
-    // TODO: [PART 1] Implement this!
+    // TODO: [PART 1] Implement this! Implemented by heli1017
+    int ret;
+    ret = checkPath(path);
+    if (ret)
+        return ret;
+    ret = checkPath(newpath);
+    if (ret)
+        return ret;
+
+    int index = getFileIndex(path);
+    if(index >= 0) {
+        if(getFileIndex(newpath) >= 0) {
+            fuseUnlink(newpath);
+        }
+        strncpy(files[index].name, newpath, NAME_LENGTH -1);
+    } else {
+        return -ERRNO;
+    }
 
     return 0;
 }
