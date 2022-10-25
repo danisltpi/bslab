@@ -302,9 +302,14 @@ int MyInMemoryFS::fuseChmod(const char *path, mode_t mode) {
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
     LOGF( "\tChange of the User and group ID of %s requested\n", path );
-    if(getFileIndex(path))
+    if(checkPath(path))
+        return -EINVAL;
+    int fileIndex = getFileIndex(path);
+    if(fileIndex)
         return -ENOENT;
-
+    MyFsFileInfo file = files[fileIndex];
+    file.uid = uid;
+    file.gid = gid;
     // TODO: [PART 1] Implement this!
     RETURN(0);
 }
