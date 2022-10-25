@@ -325,7 +325,6 @@ int MyInMemoryFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
 int MyInMemoryFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 	int ret, index;
 	char file_name[NAME_LENGTH];
-	MyFsFileInfo *file_ptr;
 
     LOGM();
     // TODO: [PART 1] Implement this! implemented by danisltpi
