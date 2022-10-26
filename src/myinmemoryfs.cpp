@@ -316,9 +316,20 @@ int MyInMemoryFS::fuseGetattr(const char *path, struct stat *statbuf)
 /// \return 0 on success, -ERRNO on failure.
 int MyInMemoryFS::fuseChmod(const char *path, mode_t mode)
 {
+	int ret, index;
+
 	LOGM();
 
 	// TODO: [PART 1] Implement this!
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+
+	index = getFileIndex(path);
+	if (index == -1)
+		return -ENOENT;
+
+	files[index].mode = mode;
 
 	RETURN(0);
 }
