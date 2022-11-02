@@ -419,7 +419,8 @@ int MyInMemoryFS::fuseRead(const char *path, char *buf, size_t size,
 													 off_t offset, struct fuse_file_info *fileInfo)
 {
 	int ret, index;
-	char file_name[NAME_LENGTH];
+	uintptr_t read_start, file_end;
+	size_t read_size;
 	LOGM();
 
 	// TODO: [PART 1] Implement this! // implemented by danisltpi
@@ -430,18 +431,25 @@ int MyInMemoryFS::fuseRead(const char *path, char *buf, size_t size,
 	ret = checkPath(path);
 	if (ret)
 		return ret;
-	strncpy(file_name, path, NAME_LENGTH - 1);
-	file_name[NAME_LENGTH - 1] = '\0';
-	index = getFileIndex(file_name);
+	index = getFileIndex(path);
 	if (index == -1)
 		return -ENOENT;
 
 	MyFsFileInfo *file = &files[index];
-	char *selectedText = file->data;
 
-	memcpy(buf, selectedText + offset, size);
+	read_start = (uintptr_t)file->data + offset;
+	file_end = (uintptr_t)file->data + file->size;
 
-	RETURN((int)(strlen(selectedText) - offset));
+	read_size = size;
+
+	if ((read_start + size) > file_end) {
+		/* trying to read more than available, trim read size to the maximum */
+		read_size = file_end - read_start;
+	}
+
+	memcpy(buf, file->data + offset, read_size);
+
+	RETURN((int)read_size);
 }
 
 /// @brief Write to a file.
