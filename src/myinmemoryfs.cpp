@@ -636,6 +636,7 @@ int MyInMemoryFS::fuseTruncate(const char *path, off_t newSize,
 	LOGM();
 
 	// TODO: [PART 1] Implement this!
+	fuseTruncate(path, newSize);
 
 	RETURN(0);
 }
