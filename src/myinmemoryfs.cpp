@@ -296,7 +296,7 @@ int MyInMemoryFS::fuseGetattr(const char *path, struct stat *statbuf)
 		/* access time is now */
 		file->atime = time(NULL);
 
-		statbuf->st_mode = S_IFREG | 0644;
+		statbuf->st_mode = S_IFREG | file->mode;
 		statbuf->st_nlink = 1;
 		statbuf->st_size = file->size;
 		statbuf->st_ctime = file->ctime;
@@ -615,7 +615,6 @@ int MyInMemoryFS::fuseTruncate(const char *path, off_t newSize)
 	free(file->data);
 	file->data = buf;
 	file->size = copySize;
-
 	// TODO: [PART 1] Implement this!
 
 	return 0;
