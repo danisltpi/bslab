@@ -592,6 +592,7 @@ int MyInMemoryFS::fuseTruncate(const char *path, off_t newSize)
 	if (newSize == 0) {
 		free(file->data);
 		file->data = NULL;
+        file->size = 0;
 		return 0;
 	}
 
