@@ -218,18 +218,18 @@ int MyInMemoryFS::fuseRename(const char *path, const char *newpath)
 	if (ret)
 		return ret;
 
-	int index = getFileIndex(path);
-	if (index >= 0)
+	int index = getFileIndex(path); //holt sich index der gesuchten Datei path
+	if (index >= 0) //falls Datei path vorhanden
 	{
-		if (getFileIndex(newpath) >= 0)
+		if (getFileIndex(newpath) >= 0) //checken, ob Datei mit neuem Namen existiert
 		{
-			fuseUnlink(newpath);
+			fuseUnlink(newpath); //löscht Datei mit neuem Namen
 		}
-		strncpy(files[index].name, newpath, NAME_LENGTH - 1);
+		strncpy(files[index].name, newpath, NAME_LENGTH - 1); //nennt path in newpath um
 	}
 	else
 	{
-		return -ENOENT;
+		return -ENOENT; //ERROR, falls Datei path nicht existiert
 	}
 
 	return 0;
