@@ -31,7 +31,6 @@ MyOnDiskFS::MyOnDiskFS() : MyFS() {
     this->blockDevice= new BlockDevice(BLOCK_SIZE);
 
     // TODO: [PART 2] Add your constructor code here
-
 }
 
 /// @brief Destructor of the on-disk file system class.

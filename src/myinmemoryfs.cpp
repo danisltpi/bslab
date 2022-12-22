@@ -218,18 +218,18 @@ int MyInMemoryFS::fuseRename(const char *path, const char *newpath)
 	if (ret)
 		return ret;
 
-	int index = getFileIndex(path); //holt sich index der gesuchten Datei path
-	if (index >= 0) //falls Datei path vorhanden
+	int index = getFileIndex(path); // holt sich index der gesuchten Datei path
+	if (index >= 0)									// falls Datei path vorhanden
 	{
-		if (getFileIndex(newpath) >= 0) //checken, ob Datei mit neuem Namen existiert
+		if (getFileIndex(newpath) >= 0) // checken, ob Datei mit neuem Namen existiert
 		{
-			fuseUnlink(newpath); //löscht Datei mit neuem Namen
+			fuseUnlink(newpath); // löscht Datei mit neuem Namen
 		}
-		strncpy(files[index].name, newpath, NAME_LENGTH - 1); //nennt path in newpath um
+		strncpy(files[index].name, newpath, NAME_LENGTH - 1); // nennt path in newpath um
 	}
 	else
 	{
-		return -ENOENT; //ERROR, falls Datei path nicht existiert
+		return -ENOENT; // ERROR, falls Datei path nicht existiert
 	}
 
 	return 0;
@@ -442,7 +442,8 @@ int MyInMemoryFS::fuseRead(const char *path, char *buf, size_t size,
 
 	read_size = size;
 
-	if ((read_start + size) > file_end) {
+	if ((read_start + size) > file_end)
+	{
 		/* trying to read more than available, trim read size to the maximum */
 		read_size = file_end - read_start;
 	}
@@ -495,7 +496,8 @@ int MyInMemoryFS::fuseWrite(const char *path, const char *buf, size_t size,
 	file_end = file_start + file->size;
 	write_start = file_start + offset;
 
-	if (file->data == NULL) {
+	if (file->data == NULL)
+	{
 		/* no data allocated yet, allocate it now */
 		alloc_size = offset + size;
 		file->data = (char *)malloc(alloc_size);
@@ -504,7 +506,9 @@ int MyInMemoryFS::fuseWrite(const char *path, const char *buf, size_t size,
 
 		memset(file->data, 0, alloc_size);
 		file->size = alloc_size;
-	} else if (offset == 0) {
+	}
+	else if (offset == 0)
+	{
 		/* file->data is already allocated, but offset is 0.
 		 * The default UNIX behavior in this case is to overwrite the file.
 		 */
@@ -519,7 +523,9 @@ int MyInMemoryFS::fuseWrite(const char *path, const char *buf, size_t size,
 
 		file->data = alloc_buf;
 		file->size = size;
-	} else if ((write_start + size) > file_end) {
+	}
+	else if ((write_start + size) > file_end)
+	{
 		alloc_size = offset + size;
 		alloc_buf = (char *)malloc(alloc_size);
 		if (alloc_buf == NULL)
@@ -597,10 +603,11 @@ int MyInMemoryFS::fuseTruncate(const char *path, off_t newSize)
 
 	file = &files[index];
 
-	if (newSize == 0) {
+	if (newSize == 0)
+	{
 		free(file->data);
 		file->data = NULL;
-        file->size = 0;
+		file->size = 0;
 		return 0;
 	}
 
