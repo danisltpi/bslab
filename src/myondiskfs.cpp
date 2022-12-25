@@ -26,22 +26,24 @@
 /// @brief Constructor of the on-disk file system class.
 ///
 /// You may add your own constructor code here.
-MyOnDiskFS::MyOnDiskFS() : MyFS() {
+MyOnDiskFS::MyOnDiskFS() : MyFS()
+{
     // create a block device object
-    this->blockDevice= new BlockDevice(BLOCK_SIZE);
+    this->blockDevice = new BlockDevice(BLOCK_SIZE);
 
-    // TODO: [PART 2] Add your constructor code here
+    MyFsSuperBlock sb;
+    this->numberOfOpenFiles = 0;
 }
 
 /// @brief Destructor of the on-disk file system class.
 ///
 /// You may add your own destructor code here.
-MyOnDiskFS::~MyOnDiskFS() {
+MyOnDiskFS::~MyOnDiskFS()
+{
     // free block device object
     delete this->blockDevice;
 
     // TODO: [PART 2] Add your cleanup code here
-
 }
 
 /// @brief Create a new file.
@@ -52,7 +54,8 @@ MyOnDiskFS::~MyOnDiskFS() {
 /// \param [in] mode Permissions for file access.
 /// \param [in] dev Can be ignored.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
+int MyOnDiskFS::fuseMknod(const char *path, mode_t mode, dev_t dev)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -66,7 +69,8 @@ int MyOnDiskFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 /// You do not have to check file permissions, but can assume that it is always ok to access the file.
 /// \param [in] path Name of the file, starting with "/".
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseUnlink(const char *path) {
+int MyOnDiskFS::fuseUnlink(const char *path)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -83,7 +87,8 @@ int MyOnDiskFS::fuseUnlink(const char *path) {
 /// \param [in] path Name of the file, starting with "/".
 /// \param [in] newpath  New name of the file, starting with "/".
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseRename(const char *path, const char *newpath) {
+int MyOnDiskFS::fuseRename(const char *path, const char *newpath)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -97,7 +102,8 @@ int MyOnDiskFS::fuseRename(const char *path, const char *newpath) {
 /// \param [in] path Name of the file, starting with "/".
 /// \param [out] statbuf Structure containing the meta data, for details type "man 2 stat" in a terminal.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseGetattr(const char *path, struct stat *statbuf) {
+int MyOnDiskFS::fuseGetattr(const char *path, struct stat *statbuf)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -112,7 +118,8 @@ int MyOnDiskFS::fuseGetattr(const char *path, struct stat *statbuf) {
 /// \param [in] path Name of the file, starting with "/".
 /// \param [in] mode New mode of the file.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseChmod(const char *path, mode_t mode) {
+int MyOnDiskFS::fuseChmod(const char *path, mode_t mode)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -128,7 +135,8 @@ int MyOnDiskFS::fuseChmod(const char *path, mode_t mode) {
 /// \param [in] uid New user id.
 /// \param [in] gid New group id.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
+int MyOnDiskFS::fuseChown(const char *path, uid_t uid, gid_t gid)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -144,7 +152,8 @@ int MyOnDiskFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
 /// \param [in] path Name of the file, starting with "/".
 /// \param [out] fileInfo Can be ignored in Part 1
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
+int MyOnDiskFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -169,7 +178,8 @@ int MyOnDiskFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 /// \param [in] fileInfo Can be ignored in Part 1
 /// \return The Number of bytes read on success. This may be less than size if the file does not contain sufficient bytes.
 /// -ERRNO on failure.
-int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
+int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -192,7 +202,8 @@ int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset,
 /// the file.
 /// \param [in] fileInfo Can be ignored in Part 1 .
 /// \return Number of bytes written on success, -ERRNO on failure.
-int MyOnDiskFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
+int MyOnDiskFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -205,7 +216,8 @@ int MyOnDiskFS::fuseWrite(const char *path, const char *buf, size_t size, off_t 
 /// \param [in] path Name of the file, starting with "/".
 /// \param [in] File handel for the file set by fuseOpen.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
+int MyOnDiskFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -221,7 +233,8 @@ int MyOnDiskFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
 /// \param [in] path Name of the file, starting with "/".
 /// \param [in] newSize New size of the file.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize) {
+int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -239,7 +252,8 @@ int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize) {
 /// \param [in] newSize New size of the file.
 /// \param [in] fileInfo Can be ignored in Part 1.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize, struct fuse_file_info *fileInfo) {
+int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize, struct fuse_file_info *fileInfo)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -257,7 +271,8 @@ int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize, struct fuse_file_i
 /// \param [in] offset Can be ignored.
 /// \param [in] fileInfo Can be ignored.
 /// \return 0 on success, -ERRNO on failure.
-int MyOnDiskFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo) {
+int MyOnDiskFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo)
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
@@ -270,12 +285,16 @@ int MyOnDiskFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler,
 /// This function is called when the file system is mounted. You may add some initializing code here.
 /// \param [in] conn Can be ignored.
 /// \return 0.
-void* MyOnDiskFS::fuseInit(struct fuse_conn_info *conn) {
+void *MyOnDiskFS::fuseInit(struct fuse_conn_info *conn)
+{
     // Open logfile
-    this->logFile= fopen(((MyFsInfo *) fuse_get_context()->private_data)->logFile, "w+");
-    if(this->logFile == NULL) {
-        fprintf(stderr, "ERROR: Cannot open logfile %s\n", ((MyFsInfo *) fuse_get_context()->private_data)->logFile);
-    } else {
+    this->logFile = fopen(((MyFsInfo *)fuse_get_context()->private_data)->logFile, "w+");
+    if (this->logFile == NULL)
+    {
+        fprintf(stderr, "ERROR: Cannot open logfile %s\n", ((MyFsInfo *)fuse_get_context()->private_data)->logFile);
+    }
+    else
+    {
         // turn of logfile buffering
         setvbuf(this->logFile, NULL, _IOLBF, 0);
 
@@ -283,31 +302,39 @@ void* MyOnDiskFS::fuseInit(struct fuse_conn_info *conn) {
 
         LOG("Using on-disk mode");
 
-        LOGF("Container file name: %s", ((MyFsInfo *) fuse_get_context()->private_data)->contFile);
+        LOGF("Container file name: %s", ((MyFsInfo *)fuse_get_context()->private_data)->contFile);
 
-        int ret= this->blockDevice->open(((MyFsInfo *) fuse_get_context()->private_data)->contFile);
+        int ret = this->blockDevice->open(((MyFsInfo *)fuse_get_context()->private_data)->contFile);
 
-        if(ret >= 0) {
+        if (ret >= 0)
+        {
             LOG("Container file does exist, reading");
 
             // TODO: [PART 2] Read existing structures form file
-
-        } else if(ret == -ENOENT) {
+            char buffer[BLOCK_SIZE];
+            // lese gespeicherte daten vom datentraeger ein
+            this->blockDevice->read(0, buffer);
+            // kopiere daten des ersten blocks in sb (Superblock)
+            memcpy(&sb, buffer, BLOCK_SIZE);
+        }
+        else if (ret == -ENOENT)
+        {
             LOG("Container file does not exist, creating a new one");
 
-            ret = this->blockDevice->create(((MyFsInfo *) fuse_get_context()->private_data)->contFile);
+            ret = this->blockDevice->create(((MyFsInfo *)fuse_get_context()->private_data)->contFile);
 
-            if (ret >= 0) {
+            if (ret >= 0)
+            {
 
                 // TODO: [PART 2] Create empty structures in file
-
             }
         }
 
-        if(ret < 0) {
+        if (ret < 0)
+        {
             LOGF("ERROR: Access to container file failed with error %d", ret);
         }
-     }
+    }
 
     return 0;
 }
@@ -315,11 +342,11 @@ void* MyOnDiskFS::fuseInit(struct fuse_conn_info *conn) {
 /// @brief Clean up a file system.
 ///
 /// This function is called when the file system is unmounted. You may add some cleanup code here.
-void MyOnDiskFS::fuseDestroy() {
+void MyOnDiskFS::fuseDestroy()
+{
     LOGM();
 
     // TODO: [PART 2] Implement this!
-
 }
 
 // TODO: [PART 2] You may add your own additional methods here!
@@ -329,6 +356,7 @@ void MyOnDiskFS::fuseDestroy() {
 /// @brief Set the static instance of the file system.
 ///
 /// Do not edit this method!
-void MyOnDiskFS::SetInstance() {
-    MyFS::_instance= new MyOnDiskFS();
+void MyOnDiskFS::SetInstance()
+{
+    MyFS::_instance = new MyOnDiskFS();
 }

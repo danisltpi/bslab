@@ -16,7 +16,8 @@
 
 // TODO: Add structures of your file system here
 
-struct MyFsFileInfo {
+struct MyFsFileInfo
+{
 	char name[NAME_LENGTH];
 	size_t size;
 	uid_t uid;
@@ -26,6 +27,24 @@ struct MyFsFileInfo {
 	time_t mtime;
 	time_t ctime;
 	char *data;
+};
+
+struct MyFsSuperBlock
+{
+	uint64_t fs_size;
+	uint64_t fat_start_block;
+	uint64_t dmap_start_block;
+	uint64_t root_start_block;
+	uint64_t data_start_block;
+	uint64_t block_count;
+};
+
+struct MyFsFAT
+{
+};
+
+struct MyFsDmap
+{
 };
 
 #endif /* myfs_structs_h */

@@ -7,12 +7,16 @@
 #define MYFS_MYONDISKFS_H
 
 #include "myfs.h"
+#include "myfs-structs.h"
 
 /// @brief On-disk implementation of a simple file system.
 class MyOnDiskFS : public MyFS {
+private:
+    int numberOfOpenFiles;
 
 protected:
     // BlockDevice blockDevice;
+    MyFsSuperBlock sb;
 
 public:
     static MyOnDiskFS *Instance();
