@@ -32,7 +32,7 @@ MyOnDiskFS::MyOnDiskFS() : MyFS()
     // create a block device object
     this->blockDevice = new BlockDevice(BLOCK_SIZE);
 
-    MyFsSuperBlock sb;
+    //MyFsSuperBlock sb;
     //OpenFile openFiles[NUM_OPEN_FILES];
 }
 
