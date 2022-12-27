@@ -47,4 +47,9 @@ struct MyFsDmap
 {
 };
 
+struct OpenFile {
+    int buffer[BLOCK_SIZE];
+    int blockNo;
+};
+
 #endif /* myfs_structs_h */

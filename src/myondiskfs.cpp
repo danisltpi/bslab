@@ -22,6 +22,7 @@
 #include "myfs.h"
 #include "myfs-info.h"
 #include "blockdevice.h"
+#include "OpenFile.h"
 
 /// @brief Constructor of the on-disk file system class.
 ///
@@ -32,7 +33,7 @@ MyOnDiskFS::MyOnDiskFS() : MyFS()
     this->blockDevice = new BlockDevice(BLOCK_SIZE);
 
     MyFsSuperBlock sb;
-    this->numberOfOpenFiles = 0;
+    OpenFile openFiles[NUM_OPEN_FILES];
 }
 
 /// @brief Destructor of the on-disk file system class.
@@ -44,6 +45,54 @@ MyOnDiskFS::~MyOnDiskFS()
     delete this->blockDevice;
 
     // TODO: [PART 2] Add your cleanup code here
+}
+
+// Definitions of private methods here
+
+// Check if file with file_name exists
+// \param [in] file_name File name to check.
+// \return index of MyFsFileInfo if file exists, otherwise -1.
+int MyOnDiskFS::getFileIndex(const char *file_name)
+{
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++)
+    {
+        if (strcmp(files[i].name, file_name) == 0)
+            return i;
+    }
+    // Iterated through all file entries and file was not found
+    return -1;
+}
+
+// Get a free slot which doesn't have a file stored
+// \return index of MyFsFileInfo if free slot is found, otherwise -1.
+int MyOnDiskFS::getFreeSlot(void)
+{
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++)
+    {
+        if (files[i].name[0] == '\0')
+        {
+            // Empty name, so entry is free
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Sanitize path
+// \param [in] path Path to be sanitized.
+// \return 0 on success, -ERRNO on failure.
+int MyOnDiskFS::checkPath(const char *path)
+{
+    size_t path_len;
+
+    if (path == NULL)
+        return -EINVAL;
+
+    path_len = strnlen(path, NAME_LENGTH);
+    if (path_len == 0 || path_len == NAME_LENGTH)
+        return -EINVAL;
+
+    return 0;
 }
 
 /// @brief Create a new file.
@@ -92,8 +141,29 @@ int MyOnDiskFS::fuseRename(const char *path, const char *newpath)
     LOGM();
 
     // TODO: [PART 2] Implement this!
+    int ret;
+    ret = checkPath(path);
+    if (ret)
+        return ret;
+    ret = checkPath(newpath);
+    if (ret)
+        return ret;
 
-    RETURN(0);
+    int index = getFileIndex(path); // holt sich index der gesuchten Datei path
+    if (index >= 0)									// falls Datei path vorhanden
+    {
+        if (getFileIndex(newpath) >= 0) // checken, ob Datei mit neuem Namen existiert
+        {
+            fuseUnlink(newpath); // löscht Datei mit neuem Namen
+        }
+        strncpy(files[index].name, newpath, NAME_LENGTH - 1); // nennt path in newpath um
+    }
+    else
+    {
+        return -ENOENT; // ERROR, falls Datei path nicht existiert
+    }
+
+    return 0;
 }
 
 /// @brief Get file meta data.
@@ -157,6 +227,7 @@ int MyOnDiskFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo)
     LOGM();
 
     // TODO: [PART 2] Implement this!
+    //fileInfo->fh = i;
 
     RETURN(0);
 }
@@ -183,6 +254,7 @@ int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset,
     LOGM();
 
     // TODO: [PART 2] Implement this!
+    //Infos zur Datei stehen in     openFiles[fileInfo->fh]
 
     RETURN(0);
 }
