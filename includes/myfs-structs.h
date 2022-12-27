@@ -36,16 +36,27 @@ struct MyFsFileInfo
 	char *data;
 };
 
-struct MyFsSuperBlock
+struct DiskFileInfo
 {
-	uint64_t fs_size;
-	uint64_t fat_start_block;
-	uint64_t dmap_start_block;
-	uint64_t root_start_block;
-	uint64_t data_start_block;
-	uint64_t block_count;
+	char name[NAME_LENGTH];
+	size_t size;
+	uid_t uid;
+	gid_t gid;
+	mode_t mode;
+	time_t atime;
+	time_t mtime;
+	time_t ctime;
+	int firstblock;
 };
 
+struct MyFsSuperBlock
+{
+	uint32_t fat_start;
+	uint32_t root_start;
+	uint32_t data_start;
+};
+
+/*
 struct MyFsFAT
 {
 };
@@ -53,6 +64,7 @@ struct MyFsFAT
 struct MyFsDmap
 {
 };
+*/
 
 struct OpenFile {
     int buffer[BLOCK_SIZE];
