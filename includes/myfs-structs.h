@@ -10,9 +10,16 @@
 #define myfs_structs_h
 
 #define NAME_LENGTH 255
-#define BLOCK_SIZE 512
 #define NUM_DIR_ENTRIES 64
 #define NUM_OPEN_FILES 64
+
+#define BLOCK_SIZE 512
+#define FS_SIZE_MIB 20
+#define FS_SIZE_BYTES (FS_SIZE_MIB << 20)
+#define DATA_BLOCK_COUNT ((size_t)(FS_SIZE_BYTES / BLOCK_SIZE))
+
+#define EMPTY_BLOCK 0
+#define EOC_BLOCK -1
 
 // TODO: Add structures of your file system here
 
