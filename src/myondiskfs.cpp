@@ -24,6 +24,9 @@
 #include "blockdevice.h"
 //#include "OpenFile.h"
 
+int *fatBuffer;
+DiskFileInfo *rootBuffer;
+
 /// @brief Constructor of the on-disk file system class.
 ///
 /// You may add your own constructor code here.
@@ -388,6 +391,42 @@ void *MyOnDiskFS::fuseInit(struct fuse_conn_info *conn)
             this->blockDevice->read(0, buffer);
             // kopiere daten des ersten blocks in sb (Superblock)
             memcpy(&sb, buffer, BLOCK_SIZE);
+
+			LOGF("fat = %ld, root = %ld, data = %ld\n",
+				sb.fat_start, sb.root_start, sb.data_start);
+
+			// here should sb input sanity checks happen, but we don't care for now
+
+			fatBuffer = (int *)malloc(sb.fat_size);
+			if (fatBuffer == NULL)
+				return 0;
+			rootBuffer = (DiskFileInfo *)malloc(sb.root_size);
+			if (rootBuffer == NULL)
+				return 0;
+
+			// todo: find better return values in case of allocation failure above
+
+			memset(fatBuffer, 0, sizeof(sb.fat_size));
+			memset(rootBuffer, 0, sizeof(sb.root_size));
+
+			uint32_t fat_end = sb.fat_start + sb.fat_size;
+			char *bufptr;
+
+			bufptr = (char *)fatBuffer;
+
+			for (uint32_t i = sb.fat_start, offset = 0; i < fat_end; i++, offset++) {
+				this->blockDevice->read(i, bufptr + offset);
+			}
+
+			uint32_t root_end = sb.root_start + sb.root_size;
+			bufptr = (char *)rootBuffer;
+
+			for (uint32_t i = sb.root_start, offset = 0; i < root_end; i++, offset++) {
+				this->blockDevice->read(i, bufptr + offset);
+			}
+
+			LOGF("fat = %d, fat_size = %d, root = %d, root_size = %d, data = %d\n",
+				sb.fat_start, sb.fat_size, sb.root_start, sb.root_size, sb.data_start);
         }
         else if (ret == -ENOENT)
         {
@@ -399,11 +438,24 @@ void *MyOnDiskFS::fuseInit(struct fuse_conn_info *conn)
             {
 				char buf[BLOCK_SIZE] = {0};
 				sb.fat_start = 1;
-				sb.root_start = sb.fat_start + DATA_BLOCK_COUNT * sizeof(int);
+				sb.fat_size = DATA_BLOCK_COUNT * sizeof(int);
+				sb.root_start = sb.fat_start + sb.fat_size;
+				sb.root_size = sizeof(struct DiskFileInfo) * NUM_DIR_ENTRIES;
 				sb.data_start = sb.root_start + sizeof(struct DiskFileInfo) * NUM_DIR_ENTRIES;
+
 				memcpy(buf, &sb, sizeof(sb));
 				/* write the superblock back as it's empty after container creation */
 				this->blockDevice->write(0, buf);
+
+				fatBuffer = (int *)malloc(sb.fat_size);
+				if (fatBuffer == NULL)
+					return 0;
+				rootBuffer = (DiskFileInfo *)malloc(sb.root_size);
+				if (rootBuffer == NULL)
+					return 0;
+
+				memset(fatBuffer, 0, sizeof(sb.fat_size));
+				memset(rootBuffer, 0, sizeof(sb.root_size));
             }
         }
 

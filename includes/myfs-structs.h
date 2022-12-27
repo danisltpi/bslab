@@ -54,6 +54,8 @@ struct MyFsSuperBlock
 	uint32_t fat_start;
 	uint32_t root_start;
 	uint32_t data_start;
+	size_t fat_size;
+	size_t root_size;
 };
 
 /*
