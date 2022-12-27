@@ -22,7 +22,7 @@
 #include "myfs.h"
 #include "myfs-info.h"
 #include "blockdevice.h"
-#include "OpenFile.h"
+//#include "OpenFile.h"
 
 /// @brief Constructor of the on-disk file system class.
 ///
@@ -33,7 +33,7 @@ MyOnDiskFS::MyOnDiskFS() : MyFS()
     this->blockDevice = new BlockDevice(BLOCK_SIZE);
 
     MyFsSuperBlock sb;
-    OpenFile openFiles[NUM_OPEN_FILES];
+    //OpenFile openFiles[NUM_OPEN_FILES];
 }
 
 /// @brief Destructor of the on-disk file system class.
@@ -383,7 +383,7 @@ void *MyOnDiskFS::fuseInit(struct fuse_conn_info *conn)
             LOG("Container file does exist, reading");
 
             // TODO: [PART 2] Read existing structures form file
-            char buffer[BLOCK_SIZE];
+            char buffer[BLOCK_SIZE] = {0};
             // lese gespeicherte daten vom datentraeger ein
             this->blockDevice->read(0, buffer);
             // kopiere daten des ersten blocks in sb (Superblock)
@@ -397,8 +397,13 @@ void *MyOnDiskFS::fuseInit(struct fuse_conn_info *conn)
 
             if (ret >= 0)
             {
-
-                // TODO: [PART 2] Create empty structures in file
+				char buf[BLOCK_SIZE] = {0};
+				sb.fat_start = 1;
+				sb.root_start = sb.fat_start + DATA_BLOCK_COUNT * sizeof(int);
+				sb.data_start = sb.root_start + sizeof(struct DiskFileInfo) * NUM_DIR_ENTRIES;
+				memcpy(buf, &sb, sizeof(sb));
+				/* write the superblock back as it's empty after container creation */
+				this->blockDevice->write(0, buf);
             }
         }
 
