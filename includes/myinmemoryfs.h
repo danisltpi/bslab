@@ -20,7 +20,6 @@ class MyInMemoryFS : public MyFS {
 
     private:
 	int getFileIndex(const char *file_name);
-	int checkPath(const char *file_name);
 	int getFreeSlot(void);
 
     public:
