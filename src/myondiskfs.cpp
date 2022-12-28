@@ -197,12 +197,31 @@ int MyOnDiskFS::fuseMknod(const char *path, mode_t mode, dev_t dev)
 /// \param [in] path Name of the file, starting with "/".
 /// \return 0 on success, -ERRNO on failure.
 int MyOnDiskFS::fuseUnlink(const char *path)
-{
-    LOGM();
+{	
+	int ret, index;
+	char file_name[NAME_LENGTH];
+	DiskFileInfo *file_ptr;
+	LOGM();
+	ret = checkPath(path);
+	if (ret){
+		return ret;
+	}
 
-    // TODO: [PART 2] Implement this!
+	strncpy(file_name, path, NAME_LENGTH - 1);
+	file_name[NAME_LENGTH - 1] = '\0';
 
+	index = getFileIndex(file_name);
+
+	if (index == -1){
+		return -ENOENT;
+	}
+	file_ptr = &rootBuffer[index];
+
+	memset(file_ptr, 0, sizeof(DiskFileInfo));
+	syncFAT();
+	syncRoot();
     RETURN(0);
+	//Implemented by Maik 
 }
 
 /// @brief Rename a file.
