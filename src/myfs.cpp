@@ -30,8 +30,24 @@
 
 // TODO: [PART 2] You may move some helper messages here
 
-// DO NOT EDIT ANYTHING BELOW THIS LINE!!!
+// Sanitize path
+// \param [in] path Path to be sanitized.
+// \return 0 on success, -ERRNO on failure.
+int MyFS::checkPath(const char *path)
+{
+	size_t path_len;
 
+	if (path == NULL)
+		return -EINVAL;
+
+	path_len = strnlen(path, NAME_LENGTH);
+	if (path_len == 0 || path_len == NAME_LENGTH)
+		return -EINVAL;
+
+	return 0;
+}
+
+// DO NOT EDIT ANYTHING BELOW THIS LINE!!!
 MyFS::MyFS() {
     this->logFile= stderr;
 }

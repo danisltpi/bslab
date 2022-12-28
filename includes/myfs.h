@@ -19,9 +19,10 @@ class MyFS {
 protected:
     static MyFS *_instance;
     FILE *logFile;
+	int checkPath(const char *path);
 
     BlockDevice *blockDevice;
-    
+
 public:
     static MyFS *Instance();
     
