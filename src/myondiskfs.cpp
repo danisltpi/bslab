@@ -27,6 +27,11 @@
 int *fatBuffer;
 DiskFileInfo *rootBuffer;
 
+size_t align_to_block_size(size_t x)
+{
+	return (x + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1);
+}
+
 /// @brief Constructor of the on-disk file system class.
 ///
 /// You may add your own constructor code here.
@@ -59,7 +64,7 @@ int MyOnDiskFS::getFileIndex(const char *file_name)
 {
     for (int i = 0; i < NUM_DIR_ENTRIES; i++)
     {
-        if (strcmp(files[i].name, file_name) == 0)
+        if (strcmp(rootBuffer[i].name, file_name) == 0)
             return i;
     }
     // Iterated through all file entries and file was not found
@@ -68,11 +73,11 @@ int MyOnDiskFS::getFileIndex(const char *file_name)
 
 // Get a free slot which doesn't have a file stored
 // \return index of MyFsFileInfo if free slot is found, otherwise -1.
-int MyOnDiskFS::getFreeSlot(void)
+int MyOnDiskFS::getFreeRootSlot(void)
 {
     for (int i = 0; i < NUM_DIR_ENTRIES; i++)
     {
-        if (files[i].name[0] == '\0')
+        if (rootBuffer[i].name[0] == '\0')
         {
             // Empty name, so entry is free
             return i;
@@ -98,6 +103,37 @@ int MyOnDiskFS::checkPath(const char *path)
     return 0;
 }
 
+int MyOnDiskFS::getEmptyBlockFAT(void)
+{
+	int fat_entries = sb.fat_size / sizeof(int);
+
+	for (int i = 0; i < fat_entries; i++) {
+		if (fatBuffer[i] == EMPTY_BLOCK)
+			return i;
+	}
+	return -1;
+}
+
+void MyOnDiskFS::syncFAT(void)
+{
+	int fat_size = sb.fat_size;
+	char *bufptr = (char *)fatBuffer;
+
+	for (int block = 0; block < fat_size; block += BLOCK_SIZE) {
+		this->blockDevice->write(sb.fat_start + block, bufptr + block);
+	}
+}
+
+void MyOnDiskFS::syncRoot(void)
+{
+	int root_size = sb.root_size;
+	char *bufptr = (char *)rootBuffer;
+
+	for (int block = 0; block < root_size; block += BLOCK_SIZE) {
+		this->blockDevice->write(sb.root_start + block, bufptr + block);
+	}
+}
+
 /// @brief Create a new file.
 ///
 /// Create a new file with given name and permissions.
@@ -108,7 +144,46 @@ int MyOnDiskFS::checkPath(const char *path)
 /// \return 0 on success, -ERRNO on failure.
 int MyOnDiskFS::fuseMknod(const char *path, mode_t mode, dev_t dev)
 {
+	int ret, emptyblock, rootslot;
+	time_t time_now;
+	DiskFileInfo *new_file;
+
     LOGM();
+
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+
+	if (getFileIndex(path) != -1)
+		return -EEXIST;
+
+	time_now = time(NULL);
+	if (time_now == -1)
+		return -EFAULT;
+
+	emptyblock = getEmptyBlockFAT();
+	if (emptyblock == -1)
+		return -ENOMEM;
+
+	rootslot = getFreeRootSlot();
+	if (rootslot == -1)
+		return -ENOMEM;
+
+	/* at this point, we have an empty data block and a free root slot */
+	new_file = &rootBuffer[rootslot];
+	strncpy(new_file->name, path, NAME_LENGTH - 1);
+	new_file->size = 0;
+	new_file->uid = getuid();
+	new_file->gid = getgid();
+	new_file->mode = mode;
+	new_file->atime = new_file->mtime = new_file->ctime = time_now;
+	new_file->firstblock = emptyblock;
+	/* mark the empty block as used now */
+	fatBuffer[emptyblock] = EOC_BLOCK;
+
+	/* sync root and fat back to container block device */
+	syncFAT();
+	syncRoot();
 
     // TODO: [PART 2] Implement this!
 
@@ -367,35 +442,86 @@ void *MyOnDiskFS::fuseInit(struct fuse_conn_info *conn)
     if (this->logFile == NULL)
     {
         fprintf(stderr, "ERROR: Cannot open logfile %s\n", ((MyFsInfo *)fuse_get_context()->private_data)->logFile);
-    }
-    else
-    {
-        // turn of logfile buffering
-        setvbuf(this->logFile, NULL, _IOLBF, 0);
+		return 0;
+	}
 
-        LOG("Starting logging...\n");
+	// turn of logfile buffering
+	setvbuf(this->logFile, NULL, _IOLBF, 0);
 
-        LOG("Using on-disk mode");
+	LOG("Starting logging...\n");
 
-        LOGF("Container file name: %s", ((MyFsInfo *)fuse_get_context()->private_data)->contFile);
+	LOG("Using on-disk mode");
 
-        int ret = this->blockDevice->open(((MyFsInfo *)fuse_get_context()->private_data)->contFile);
+	LOGF("Container file name: %s", ((MyFsInfo *)fuse_get_context()->private_data)->contFile);
 
-        if (ret >= 0)
-        {
-            LOG("Container file does exist, reading");
+	int ret = this->blockDevice->open(((MyFsInfo *)fuse_get_context()->private_data)->contFile);
 
-            // TODO: [PART 2] Read existing structures form file
-            char buffer[BLOCK_SIZE] = {0};
-            // lese gespeicherte daten vom datentraeger ein
-            this->blockDevice->read(0, buffer);
-            // kopiere daten des ersten blocks in sb (Superblock)
-            memcpy(&sb, buffer, BLOCK_SIZE);
+	if (ret >= 0)
+	{
+		LOG("Container file does exist, reading");
 
-			LOGF("fat = %ld, root = %ld, data = %ld\n",
-				sb.fat_start, sb.root_start, sb.data_start);
+		char buffer[BLOCK_SIZE] = {0};
+		// lese gespeicherte daten vom datentraeger ein
+		this->blockDevice->read(0, buffer);
+		// kopiere daten des ersten blocks in sb (Superblock)
+		memcpy(&sb, buffer, BLOCK_SIZE);
 
-			// here should sb input sanity checks happen, but we don't care for now
+		// here should sb input sanity checks happen, but we don't care for now
+
+		fatBuffer = (int *)malloc(sb.fat_size);
+		if (fatBuffer == NULL)
+			return 0;
+		rootBuffer = (DiskFileInfo *)malloc(sb.root_size);
+		if (rootBuffer == NULL)
+			return 0;
+
+		// TODO: find better return values in case of allocation failure above
+
+		memset(fatBuffer, 0, sizeof(sb.fat_size));
+		memset(rootBuffer, 0, sizeof(sb.root_size));
+
+		int fat_end = sb.fat_start + sb.fat_size;
+		int offset;
+		char *bufptr = (char *)fatBuffer;
+
+		/* read FAT into RAM, reading is done one block of BLOCK_SIZE at a time */
+		for (int block = sb.fat_start; block != fat_end; block += BLOCK_SIZE) {
+			offset = block - sb.fat_start;
+			this->blockDevice->read(block, bufptr + offset);
+		}
+
+		int root_end = sb.root_start + sb.root_size;
+		bufptr = (char *)rootBuffer;
+
+		/* read root entries into RAM, reading is done one block of BLOCK_SIZE at a time */
+		for (int block = sb.root_start; block != root_end; block++) {
+			offset = block - sb.root_start;
+			this->blockDevice->read(block, bufptr + offset);
+		}
+
+		LOGF("fat = %ld, fat_size = %d, root = %ld, root_size = %d, data = %ld\n",
+			sb.fat_start, sb.fat_size, sb.root_start, sb.root_size, sb.data_start);
+	}
+	else if (ret == -ENOENT)
+	{
+		LOG("Container file does not exist, creating a new one");
+
+		ret = this->blockDevice->create(((MyFsInfo *)fuse_get_context()->private_data)->contFile);
+
+		if (ret >= 0)
+		{
+			char buf[BLOCK_SIZE] = {0};
+			sb.fat_start = 1;
+			/* fat size is aligned to block size */
+			sb.fat_size = DATA_BLOCK_COUNT * sizeof(int);
+			sb.root_start = sb.fat_start + sb.fat_size;
+			/* root size might need alignment, this makes it easier to read/write from/to RAM as it's done one block at a time */
+			sb.root_size = align_to_block_size(sizeof(struct DiskFileInfo) * NUM_DIR_ENTRIES);
+			sb.data_start = sb.root_start + sizeof(struct DiskFileInfo) * NUM_DIR_ENTRIES;
+
+			memcpy(buf, &sb, sizeof(sb));
+			/* write the superblock back as it's empty after container creation */
+			this->blockDevice->write(0, buf);
 
 			fatBuffer = (int *)malloc(sb.fat_size);
 			if (fatBuffer == NULL)
@@ -404,66 +530,17 @@ void *MyOnDiskFS::fuseInit(struct fuse_conn_info *conn)
 			if (rootBuffer == NULL)
 				return 0;
 
-			// todo: find better return values in case of allocation failure above
-
 			memset(fatBuffer, 0, sizeof(sb.fat_size));
 			memset(rootBuffer, 0, sizeof(sb.root_size));
 
-			uint32_t fat_end = sb.fat_start + sb.fat_size;
-			char *bufptr;
+			// TODO: call syncFAT and syncRoot here
+		}
+	}
 
-			bufptr = (char *)fatBuffer;
-
-			for (uint32_t i = sb.fat_start, offset = 0; i < fat_end; i++, offset++) {
-				this->blockDevice->read(i, bufptr + offset);
-			}
-
-			uint32_t root_end = sb.root_start + sb.root_size;
-			bufptr = (char *)rootBuffer;
-
-			for (uint32_t i = sb.root_start, offset = 0; i < root_end; i++, offset++) {
-				this->blockDevice->read(i, bufptr + offset);
-			}
-
-			LOGF("fat = %d, fat_size = %d, root = %d, root_size = %d, data = %d\n",
-				sb.fat_start, sb.fat_size, sb.root_start, sb.root_size, sb.data_start);
-        }
-        else if (ret == -ENOENT)
-        {
-            LOG("Container file does not exist, creating a new one");
-
-            ret = this->blockDevice->create(((MyFsInfo *)fuse_get_context()->private_data)->contFile);
-
-            if (ret >= 0)
-            {
-				char buf[BLOCK_SIZE] = {0};
-				sb.fat_start = 1;
-				sb.fat_size = DATA_BLOCK_COUNT * sizeof(int);
-				sb.root_start = sb.fat_start + sb.fat_size;
-				sb.root_size = sizeof(struct DiskFileInfo) * NUM_DIR_ENTRIES;
-				sb.data_start = sb.root_start + sizeof(struct DiskFileInfo) * NUM_DIR_ENTRIES;
-
-				memcpy(buf, &sb, sizeof(sb));
-				/* write the superblock back as it's empty after container creation */
-				this->blockDevice->write(0, buf);
-
-				fatBuffer = (int *)malloc(sb.fat_size);
-				if (fatBuffer == NULL)
-					return 0;
-				rootBuffer = (DiskFileInfo *)malloc(sb.root_size);
-				if (rootBuffer == NULL)
-					return 0;
-
-				memset(fatBuffer, 0, sizeof(sb.fat_size));
-				memset(rootBuffer, 0, sizeof(sb.root_size));
-            }
-        }
-
-        if (ret < 0)
-        {
-            LOGF("ERROR: Access to container file failed with error %d", ret);
-        }
-    }
+	if (ret < 0)
+	{
+		LOGF("ERROR: Access to container file failed with error %d", ret);
+	}
 
     return 0;
 }

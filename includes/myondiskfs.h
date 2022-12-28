@@ -14,7 +14,10 @@ class MyOnDiskFS : public MyFS {
 private:
     int getFileIndex(const char *file_name);
     int checkPath(const char *file_name);
-    int getFreeSlot(void);
+    int getFreeRootSlot(void);
+	int getEmptyBlockFAT(void);
+	void syncFAT(void);
+	void syncRoot(void);
 
 protected:
     // BlockDevice blockDevice;
