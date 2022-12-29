@@ -12,12 +12,14 @@
 /// @brief On-disk implementation of a simple file system.
 class MyOnDiskFS : public MyFS {
 private:
+	int numberOfOpenFiles;
+
     int getFileIndex(const char *file_name);
-    int checkPath(const char *file_name);
     int getFreeRootSlot(void);
 	int getEmptyBlockFAT(void);
-	void syncFAT(void);
-	void syncRoot(void);
+	void sync(uint32_t dest, void *src, size_t len);
+	void syncFAT();
+	void syncRoot();
 
 protected:
     // BlockDevice blockDevice;
@@ -26,9 +28,8 @@ protected:
 public:
     static MyOnDiskFS *Instance();
 
-    // TODO: [PART 1] Add attributes of your file system here
-    MyFsFileInfo files[NUM_DIR_ENTRIES];
-    OpenFile openFiles[NUM_OPEN_FILES];
+    //MyFsFileInfo files[NUM_DIR_ENTRIES];
+    //OpenFile openFiles[NUM_OPEN_FILES];
 
     MyOnDiskFS();
     ~MyOnDiskFS();

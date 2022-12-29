@@ -87,23 +87,6 @@ int MyInMemoryFS::getFreeSlot(void)
 	return -1;
 }
 
-// Sanitize path
-// \param [in] path Path to be sanitized.
-// \return 0 on success, -ERRNO on failure.
-int MyInMemoryFS::checkPath(const char *path)
-{
-	size_t path_len;
-
-	if (path == NULL)
-		return -EINVAL;
-
-	path_len = strnlen(path, NAME_LENGTH);
-	if (path_len == 0 || path_len == NAME_LENGTH)
-		return -EINVAL;
-
-	return 0;
-}
-
 // FUSE callbacks below this line
 
 /// @brief Create a new file.
