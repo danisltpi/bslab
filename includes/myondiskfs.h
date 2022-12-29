@@ -22,6 +22,8 @@ private:
 	void sync(uint32_t dest, void *src, size_t len);
 	void syncFAT();
 	void syncRoot();
+	int fatToDataAddress(int fat_index);
+	int writeData(int block_index, const char *buf, size_t size, int offset_in_block);
 
 protected:
     // BlockDevice blockDevice;

@@ -129,6 +129,66 @@ void MyOnDiskFS::syncRoot(void)
 	sync(sb.root_start, rootBuffer, sb.root_size);
 }
 
+int MyOnDiskFS::fatToDataAddress(int fat_index)
+{
+	return sb.data_start + fat_index * BLOCK_SIZE;
+}
+
+/// @brief Write buffer to data segment in container.
+///
+/// \param [in] block_index Index refers to FAT
+/// \param [in] buf Source buffer to be written in the container
+/// \param [in] size Length of source buffer
+/// \return 0 on success, -ERRNO on failure.
+int MyOnDiskFS::writeData(int block_index, const char *buf,
+	size_t size, int offset_in_block)
+{
+	int ret;
+	int buf_offset = 0;
+	size_t writelen = 0;
+	char *block;
+
+	if (size <= 0)
+		return 0;
+
+	block = (char *)malloc(BLOCK_SIZE);
+	if (block == NULL)
+		return -ENOMEM;
+
+	while (size > 0) {
+		block_index = fatBuffer[block_index];
+
+		ret = this->blockDevice->read(fatToDataAddress(block_index), block);
+		if (ret < 0)
+			goto exit;
+
+		writelen = (size > BLOCK_SIZE) ? BLOCK_SIZE : size;
+
+		/* this can happen for the first block */
+		if (offset_in_block != 0) {
+			size_t block_space_left = BLOCK_SIZE - offset_in_block;
+			writelen = (size > block_space_left) ? block_space_left : size;
+			memcpy(block + offset_in_block, buf + buf_offset, writelen);
+			offset_in_block = 0;
+		} else {
+			memcpy(block, buf + buf_offset, writelen);
+		}
+
+		size -= writelen;
+		buf_offset += writelen;
+		ret = this->blockDevice->write(fatToDataAddress(block_index), block);
+		if (ret < 0)
+			goto exit;
+	}
+
+	ret = 0;
+
+exit:
+	free(block);
+
+	return ret;
+}
+
 /// @brief Create a new file.
 ///
 /// Create a new file with given name and permissions.
