@@ -436,13 +436,32 @@ int MyOnDiskFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo)
 /// -ERRNO on failure.
 int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
+	int ret, index;
+	DiskFileInfo *file;
     LOGM();
+	LOGF("--> Trying to read %s, %lu, %lu\n", path, (unsigned long)offset, size);
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+	index = getFileIndex(path);
+	if(index == -1){
+		return -ENOENT;
+	}
+	file = &rootBuffer[index];
+	int file_size = file->size;
+	if(file_size < (size + offset)){
+		size = file_size - offset;
+	}
+	int next, blockcount, current_block = file->firstblock;
+	blockcount  = (int) offset / BLOCK_SIZE;
+	for (int i =0; i < blockcount; i++){
+		next = fatBuffer[current_block];
+		current_block = next;
+	}
+	memcpy(buf, &fatBuffer[current_block]+offset, size);
 
-    // TODO: [PART 2] Implement this!
-    //Infos zur Datei stehen in     openFiles[fileInfo->fh]
-
-    RETURN(0);
-}
+	RETURN((int)size);
+	}
 
 /// @brief Write to a file.
 ///
