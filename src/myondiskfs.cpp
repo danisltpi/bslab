@@ -79,6 +79,21 @@ int MyOnDiskFS::getFreeRootSlot(void)
 
     return -1;
 }
+//Return the block index of the changed rootentry
+int MyOnDiskFS::getChangedBlockIndex(int fileIndex)
+{
+	//STEP 1: fileIndex * Größe der Struct für DiskFileInfo + rootStart um auf die Position im Container zu kommen
+	//STEP 2: Position % BLOCKSIZE um den Index des Blocks zu bekommen indem die File ist 
+	return 0;
+}
+
+//Return the number of changed blocks
+int MyOnDiskFS::getNumChangedBlocks(int fileIndex)
+{
+	//STEP 1: get Position des entries in dem Container (siehe oben)
+	//STEP 2: schauen ob Start des Entries im Block + sizeof(DiskFileInfo) < BLOCK_SIZE wenn ja return 1 else 2
+	return 0;
+}
 
 int MyOnDiskFS::getEmptyBlockFAT(void)
 {
