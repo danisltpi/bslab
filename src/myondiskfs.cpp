@@ -79,14 +79,28 @@ int MyOnDiskFS::getFreeRootSlot(void)
 
     return -1;
 }
+
+//checks if entry is in one block only
+int MyOnDiskFS::entryInOneBlock(int fileIndex)
+{
+    //falls ja return 0, else return 1
+    int entryPosition = fileIndex * sizeof(struct DiskFileInfo) + sb.root_start;
+    int entrySize = rootBuffer[entryPosition].size;
+
+    if(entrySize <= BLOCK_SIZE)
+        return 0;
+
+    return 1;
+}
+
 //Return the block index of the changed rootentry
 int MyOnDiskFS::getChangedBlockIndex(int fileIndex)
 {
 	//STEP 1: fileIndex * Größe der Struct für DiskFileInfo + rootStart um auf die Position im Container zu kommen
 	//STEP 2: Position % BLOCKSIZE um den Index des Blocks zu bekommen indem die File ist
 
-    int position = fileIndex * sizeof(struct DiskFileInfo) + sb.root_start;
-    int index = position % BLOCK_SIZE;
+    int entryPosition = fileIndex * sizeof(struct DiskFileInfo) + sb.root_start;
+    int index = entryPosition % BLOCK_SIZE;
 	return index;
 }
 
