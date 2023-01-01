@@ -79,6 +79,21 @@ int MyOnDiskFS::getFreeRootSlot(void)
 
     return -1;
 }
+//Return the block index of the changed rootentry
+int MyOnDiskFS::getChangedBlockIndex(int fileIndex)
+{
+	//STEP 1: fileIndex * Größe der Struct für DiskFileInfo + rootStart um auf die Position im Container zu kommen
+	//STEP 2: Position % BLOCKSIZE um den Index des Blocks zu bekommen indem die File ist 
+	return 0;
+}
+
+//Return the number of changed blocks
+int MyOnDiskFS::getNumChangedBlocks(int fileIndex)
+{
+	//STEP 1: get Position des entries in dem Container (siehe oben)
+	//STEP 2: schauen ob Start des Entries im Block + sizeof(DiskFileInfo) < BLOCK_SIZE wenn ja return 1 else 2
+	return 0;
+}
 
 int MyOnDiskFS::getEmptyBlockFAT(void)
 {
@@ -112,6 +127,66 @@ void MyOnDiskFS::syncFAT(void)
 void MyOnDiskFS::syncRoot(void)
 {
 	sync(sb.root_start, rootBuffer, sb.root_size);
+}
+
+int MyOnDiskFS::fatToDataAddress(int fat_index)
+{
+	return sb.data_start + fat_index * BLOCK_SIZE;
+}
+
+/// @brief Write buffer to data segment in container.
+///
+/// \param [in] block_index Index refers to FAT
+/// \param [in] buf Source buffer to be written in the container
+/// \param [in] size Length of source buffer
+/// \return 0 on success, -ERRNO on failure.
+int MyOnDiskFS::writeData(int block_index, const char *buf,
+	size_t size, int offset_in_block)
+{
+	int ret;
+	int buf_offset = 0;
+	size_t writelen = 0;
+	char *block;
+
+	if (size <= 0)
+		return 0;
+
+	block = (char *)malloc(BLOCK_SIZE);
+	if (block == NULL)
+		return -ENOMEM;
+
+	while (size > 0) {
+		block_index = fatBuffer[block_index];
+
+		ret = this->blockDevice->read(fatToDataAddress(block_index), block);
+		if (ret < 0)
+			goto exit;
+
+		writelen = (size > BLOCK_SIZE) ? BLOCK_SIZE : size;
+
+		/* this can happen for the first block */
+		if (offset_in_block != 0) {
+			size_t block_space_left = BLOCK_SIZE - offset_in_block;
+			writelen = (size > block_space_left) ? block_space_left : size;
+			memcpy(block + offset_in_block, buf + buf_offset, writelen);
+			offset_in_block = 0;
+		} else {
+			memcpy(block, buf + buf_offset, writelen);
+		}
+
+		size -= writelen;
+		buf_offset += writelen;
+		ret = this->blockDevice->write(fatToDataAddress(block_index), block);
+		if (ret < 0)
+			goto exit;
+	}
+
+	ret = 0;
+
+exit:
+	free(block);
+
+	return ret;
 }
 
 /// @brief Create a new file.
@@ -208,7 +283,11 @@ int MyOnDiskFS::fuseUnlink(const char *path)
 
 	syncRoot();
 
+	memset(file_ptr, 0, sizeof(DiskFileInfo));
+	syncFAT();
+	syncRoot();
     RETURN(0);
+	//Implemented by Maik 
 }
 
 /// @brief Rename a file.
@@ -432,13 +511,32 @@ int MyOnDiskFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo)
 /// -ERRNO on failure.
 int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
+	int ret, index;
+	DiskFileInfo *file;
     LOGM();
+	LOGF("--> Trying to read %s, %lu, %lu\n", path, (unsigned long)offset, size);
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+	index = getFileIndex(path);
+	if(index == -1){
+		return -ENOENT;
+	}
+	file = &rootBuffer[index];
+	int file_size = file->size;
+	if(file_size < (size + offset)){
+		size = file_size - offset;
+	}
+	int next, blockcount, current_block = file->firstblock;
+	blockcount  = (int) offset / BLOCK_SIZE;
+	for (int i =0; i < blockcount; i++){
+		next = fatBuffer[current_block];
+		current_block = next;
+	}
+	memcpy(buf, &fatBuffer[current_block]+offset, size);
 
-    // TODO: [PART 2] Implement this!
-    //Infos zur Datei stehen in     openFiles[fileInfo->fh]
-
-    RETURN(0);
-}
+	RETURN((int)size);
+	}
 
 /// @brief Write to a file.
 ///

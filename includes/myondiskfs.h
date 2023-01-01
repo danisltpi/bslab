@@ -17,9 +17,13 @@ private:
     int getFileIndex(const char *file_name);
     int getFreeRootSlot(void);
 	int getEmptyBlockFAT(void);
+    int getChangedBlockIndex(int fileIndex);
+    int getNumChangedBlocks(int fileIndex);
 	void sync(uint32_t dest, void *src, size_t len);
 	void syncFAT();
 	void syncRoot();
+	int fatToDataAddress(int fat_index);
+	int writeData(int block_index, const char *buf, size_t size, int offset_in_block);
 
 protected:
     // BlockDevice blockDevice;
