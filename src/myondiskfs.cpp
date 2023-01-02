@@ -81,16 +81,16 @@ int MyOnDiskFS::getFreeRootSlot(void)
 }
 
 //checks if entry is in one block only
-int MyOnDiskFS::entryInOneBlock(int fileIndex)
+bool MyOnDiskFS::entryInOneBlock(int fileindex)
 {
-    //falls ja return 0, else return 1
-    int entryPosition = fileIndex * sizeof(struct DiskFileInfo) + sb.root_start;
-    int entrySize = rootBuffer[entryPosition].size;
+    int entrypos = sb.root_start + fileindex * sizeof(struct DiskFileInfo);
+	int entryoffset = entrypos % BLOCK_SIZE;
+	size_t entrylen = sizeof(struct DiskFileInfo);
 
-    if(entrySize <= BLOCK_SIZE)
-        return 0;
+    if((entryoffset + entrylen) < BLOCK_SIZE)
+        return true;
 
-    return 1;
+    return false;
 }
 
 //Return the block index of the changed rootentry
@@ -156,6 +156,73 @@ int MyOnDiskFS::fatToDataAddress(int fat_index)
 	return sb.data_start + fat_index * BLOCK_SIZE;
 }
 
+int MyOnDiskFS::getEmptyBlockChain(int num_blocks)
+{
+	/* used to temporarily store blocks to free in case
+	 * we fail to claim all required blocks
+	 */
+	int *freelist;
+	char *zeromem;
+	int claimed_blocks = 0;
+	int start_block = -1, prev_block = -1;
+
+	freelist = (int *)malloc(sizeof(int) * num_blocks);
+	if (freelist == NULL)
+		return -ENOMEM;
+
+	zeromem = (char *)malloc(BLOCK_SIZE);
+	if (zeromem == NULL) {
+		free(freelist);
+		return -ENOMEM;
+	}
+
+	memset(zeromem, 0, BLOCK_SIZE);
+
+	while (claimed_blocks < num_blocks) {
+		int block = getEmptyBlockFAT();
+
+		if (block == EOC_BLOCK)
+			goto free_blocks;
+
+		freelist[claimed_blocks++] = block;
+
+		if (start_block == -1)
+			start_block = block;
+
+		if (prev_block != -1)
+			fatBuffer[prev_block] = block;
+		fatBuffer[block] = EOC_BLOCK;
+		prev_block = block;
+		/* clear claimed memory */
+		blockDevice->write(fatToDataAddress(block), zeromem);
+	}
+
+	free(freelist);
+	free(zeromem);
+
+	return start_block;
+
+free_blocks:
+	for (int i = 0; i < claimed_blocks; i++) {
+		fatBuffer[freelist[i]] = EMPTY_BLOCK;
+	}
+
+	free(freelist);
+	free(zeromem);
+
+	return -ENOMEM;
+}
+
+void MyOnDiskFS::appendBlock(int start_block, int block)
+{
+	int current_block = start_block;
+
+	while (fatBuffer[current_block] != EOC_BLOCK)
+		current_block = fatBuffer[current_block];
+
+	fatBuffer[current_block] = block;
+}
+
 /// @brief Write buffer to data segment in container.
 ///
 /// \param [in] block_index Index refers to FAT
@@ -178,8 +245,6 @@ int MyOnDiskFS::writeData(int block_index, const char *buf,
 		return -ENOMEM;
 
 	while (size > 0) {
-		block_index = fatBuffer[block_index];
-
 		ret = this->blockDevice->read(fatToDataAddress(block_index), block);
 		if (ret < 0)
 			goto exit;
@@ -201,9 +266,50 @@ int MyOnDiskFS::writeData(int block_index, const char *buf,
 		ret = this->blockDevice->write(fatToDataAddress(block_index), block);
 		if (ret < 0)
 			goto exit;
+		block_index = fatBuffer[block_index];
 	}
 
 	ret = 0;
+
+exit:
+	free(block);
+
+	return ret;
+}
+
+int MyOnDiskFS::readData(int block_index, const char *buf, size_t size,
+							int offset_in_block)
+{
+	int ret;
+	int buf_offset = 0;
+	int readlen;
+	char *block;
+
+	block = (char *)malloc(BLOCK_SIZE);
+	if (block == NULL)
+		return -ENOMEM;
+
+	memset(block, 0, BLOCK_SIZE);
+
+	while (size > 0) {
+		readlen = (size > BLOCK_SIZE) ? BLOCK_SIZE : size;
+
+		if (offset_in_block != 0) {
+			size_t block_space_left = BLOCK_SIZE - offset_in_block;
+			readlen = (size > block_space_left) ? block_space_left : size;
+			offset_in_block = 0;
+		}
+
+		ret = this->blockDevice->read(fatToDataAddress(block_index), block);
+		if (ret < 0) {
+			goto exit;
+		}
+		memcpy((char *)(buf + buf_offset), (char *)(block + offset_in_block), readlen);
+
+		size -= readlen;
+		buf_offset += readlen;
+		block_index = fatBuffer[block_index];
+	}
 
 exit:
 	free(block);
@@ -255,9 +361,9 @@ int MyOnDiskFS::fuseMknod(const char *path, mode_t mode, dev_t dev)
 	new_file->gid = getgid();
 	new_file->mode = mode;
 	new_file->atime = new_file->mtime = new_file->ctime = time_now;
-	new_file->firstblock = emptyblock;
+	new_file->firstblock = -1;
 	/* mark the empty block as used now */
-	fatBuffer[emptyblock] = EOC_BLOCK;
+	//fatBuffer[emptyblock] = EOC_BLOCK;
 
 	/* sync root and fat back to container block device */
 	syncFAT();
@@ -266,6 +372,18 @@ int MyOnDiskFS::fuseMknod(const char *path, mode_t mode, dev_t dev)
     // TODO: [PART 2] Implement this!
 
     RETURN(0);
+}
+
+void MyOnDiskFS::freeFileData(int start_block)
+{
+	/* file is deleted, set all linked blocks in FAT to EMPTY_BLOCK */
+	int next, current_block = start_block;
+	while (current_block != EOC_BLOCK) {
+		next = fatBuffer[current_block];
+		fatBuffer[current_block] = EMPTY_BLOCK;
+		current_block = next;
+	}
+	syncFAT();
 }
 
 /// @brief Delete a file.
@@ -290,23 +408,11 @@ int MyOnDiskFS::fuseUnlink(const char *path)
 		return -ENOENT;
 
 	file_ptr = &rootBuffer[index];
-	if (file_ptr->firstblock != EOC_BLOCK) {
-		/* file is deleted, set all linked blocks in FAT to EMPTY_BLOCK */
-		int next, current_block = file_ptr->firstblock;
-		while (current_block != EOC_BLOCK) {
-			next = fatBuffer[current_block];
-			fatBuffer[current_block] = EMPTY_BLOCK;
-			current_block = next;
-		}
-		syncFAT();
-	}
+	if (file_ptr->firstblock != EOC_BLOCK)
+		freeFileData(file_ptr->firstblock);
 
-	memset(file_ptr, 0, sizeof(DiskFileInfo));
+	memset(file_ptr, 0, sizeof(struct DiskFileInfo));
 
-	syncRoot();
-
-	memset(file_ptr, 0, sizeof(DiskFileInfo));
-	syncFAT();
 	syncRoot();
     RETURN(0);
 	//Implemented by Maik 
@@ -535,30 +641,63 @@ int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset,
 {
 	int ret, index;
 	DiskFileInfo *file;
+
     LOGM();
 	LOGF("--> Trying to read %s, %lu, %lu\n", path, (unsigned long)offset, size);
+
+	if (size == 0)
+		return 0;
+
 	ret = checkPath(path);
 	if (ret)
 		return ret;
+
 	index = getFileIndex(path);
-	if(index == -1){
+	if(index == -1)
 		return -ENOENT;
-	}
+
 	file = &rootBuffer[index];
+	if (file->firstblock == EOC_BLOCK)
+		return -ENOBUFS;
+
+	/* offset is out of bounds */
+	if (file->size < offset)
+		return -ENOBUFS;
+
+	/* read would be out of bounds */
+	if (file->size < size)
+		size = file->size;
+	else if (file->size < (offset + size))
+		size -= offset;
+
+	int offset_in_blocks = offset / BLOCK_SIZE;
+	int read_offset_in_block = offset % BLOCK_SIZE;
+	int current_block = file->firstblock;
+
+	for (int block_iter = 0; block_iter < offset_in_blocks; block_iter++)
+		current_block = fatBuffer[current_block];
+
+	ret = readData(current_block, buf, size, read_offset_in_block);
+	if (ret < 0) {
+		RETURN(int(ret));
+	}
+
+	/*
 	int file_size = file->size;
 	if(file_size < (size + offset)){
 		size = file_size - offset;
 	}
 	int next, blockcount, current_block = file->firstblock;
 	blockcount  = (int) offset / BLOCK_SIZE;
-	for (int i =0; i < blockcount; i++){
+	for (int i = 0; i < blockcount; i++){
 		next = fatBuffer[current_block];
 		current_block = next;
 	}
 	memcpy(buf, &fatBuffer[current_block]+offset, size);
+	*/
 
 	RETURN((int)size);
-	}
+}
 
 /// @brief Write to a file.
 ///
@@ -577,11 +716,82 @@ int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset,
 /// \return Number of bytes written on success, -ERRNO on failure.
 int MyOnDiskFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
+	int ret, index;
+	DiskFileInfo *file;
+
     LOGM();
-
     // TODO: [PART 2] Implement this!
+	ret = checkPath(path);
+	if (ret)
+		return ret;
 
-    RETURN(0);
+	index = getFileIndex(path);
+	if (index == -1)
+		return -ENOENT;
+
+	file = &rootBuffer[index];
+	/* no data yet, fresh allocation */
+	if (file->firstblock == -1) {
+		int firstblock;
+		int num_alloc_blocks = (offset + size) / BLOCK_SIZE;
+		int write_start_block = offset / BLOCK_SIZE;
+		int offset_in_block = offset % BLOCK_SIZE;
+
+		if (num_alloc_blocks == 0)
+			num_alloc_blocks = 1;
+
+		if ((offset_in_block + size) >= BLOCK_SIZE)
+			num_alloc_blocks++;
+
+		firstblock = getEmptyBlockChain(num_alloc_blocks);
+		if (firstblock < 0)
+			/* return -ERRNO */
+			return firstblock;
+
+		ret = writeData(firstblock, buf, size, offset_in_block);
+		if (ret < 0)
+			/* TODO: we should free claimed blocks just like in getEmptyBlockChain */
+			return ret;
+
+		file->size = offset + size;
+		file->firstblock = firstblock;
+
+		return size;
+	} else if ((offset + size) > file->size) {
+		int needed_blocks = (offset + size) / BLOCK_SIZE;
+		int avail_blocks = file->size / BLOCK_SIZE;
+		int num_append = needed_blocks - avail_blocks;
+		int start_block = offset / BLOCK_SIZE;
+		int offset_in_block = offset % BLOCK_SIZE;
+
+		if (num_append != 0) {
+			int block = getEmptyBlockChain(num_append);
+			if (block < 0)
+				return block;
+			
+			appendBlock(file->firstblock, block);
+		}
+
+		ret = writeData(start_block, buf, size, offset_in_block);
+		if (ret < 0)
+			return ret;
+
+		file->size = offset + size;
+	} else {
+		int start_block = offset / BLOCK_SIZE;
+		int offset_in_block = offset % BLOCK_SIZE;
+
+		ret = writeData(start_block, buf, size, offset_in_block);
+		if (ret < 0)
+			return ret;
+	}
+
+	syncRoot();
+	syncFAT();
+
+	RETURN((int)size);
+
+    //RETURN(0);
 }
 
 /// @brief Close a file.
@@ -619,9 +829,71 @@ int MyOnDiskFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo)
 /// \return 0 on success, -ERRNO on failure.
 int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize)
 {
+	int ret, index;
+	DiskFileInfo *file;
+
     LOGM();
 
-    // TODO: [PART 2] Implement this!
+	ret = checkPath(path);
+	if (ret)
+		return ret;
+
+	index = getFileIndex(path);
+	if (index == -1)
+		return -ENOENT;
+
+	file = &rootBuffer[index];
+
+	if (newSize == 0) {
+		if (file->firstblock != EOC_BLOCK) {
+			freeFileData(file->firstblock);
+			file->firstblock = -1;
+		}
+		file->size = 0;
+		return 0;
+	}
+
+	if (file->size == (size_t)newSize)
+		return 0;
+
+	if (newSize > file->size) {
+		int diff = newSize - file->size;
+		int blocks_to_append = diff / BLOCK_SIZE;
+		if (blocks_to_append == 0) {
+			int offset_in_block = file->size % BLOCK_SIZE;
+			if ((offset_in_block + diff) > BLOCK_SIZE)
+				blocks_to_append = 1;
+		}
+		
+		int block = getEmptyBlockChain(blocks_to_append);
+		if (block < 0)
+			return block;
+		if (file->firstblock == -1)
+			file->firstblock = block;
+		else
+			appendBlock(file->firstblock, block);
+
+		file->size = newSize;
+		return 0;
+	} else {	// newSize < file->size
+		int new_blocks = newSize / BLOCK_SIZE;
+		int blocks_avail = file->size / BLOCK_SIZE;
+		int blocks_to_remove = blocks_avail - newSize;
+
+		file->size = newSize;
+
+		if (!blocks_to_remove)
+			return 0;
+
+		/* should check if file->firstblock == -1 */
+		int current_block = file->firstblock;
+
+		for (int block_iter = 0; block_iter < new_blocks; block_iter++)
+			current_block = fatBuffer[current_block];
+
+		/* i didn't check it thoroughly, might need +1, -1 adjustments */
+		freeFileData(current_block);
+	}
 
     RETURN(0);
 }
