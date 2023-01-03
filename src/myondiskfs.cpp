@@ -717,10 +717,12 @@ int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset,
 int MyOnDiskFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
 	int ret, index;
+	int needed_blocks = ((offset + size) / BLOCK_SIZE) + 1;
+	int offset_in_block = offset % BLOCK_SIZE;
 	DiskFileInfo *file;
 
     LOGM();
-    // TODO: [PART 2] Implement this!
+
 	ret = checkPath(path);
 	if (ret)
 		return ret;
@@ -731,19 +733,10 @@ int MyOnDiskFS::fuseWrite(const char *path, const char *buf, size_t size, off_t 
 
 	file = &rootBuffer[index];
 	/* no data yet, fresh allocation */
-	if (file->firstblock == -1) {
+	if (file->firstblock == EOC_BLOCK) {
 		int firstblock;
-		int num_alloc_blocks = (offset + size) / BLOCK_SIZE;
-		int write_start_block = offset / BLOCK_SIZE;
-		int offset_in_block = offset % BLOCK_SIZE;
 
-		if (num_alloc_blocks == 0)
-			num_alloc_blocks = 1;
-
-		if ((offset_in_block + size) >= BLOCK_SIZE)
-			num_alloc_blocks++;
-
-		firstblock = getEmptyBlockChain(num_alloc_blocks);
+		firstblock = getEmptyBlockChain(needed_blocks);
 		if (firstblock < 0)
 			/* return -ERRNO */
 			return firstblock;
@@ -755,43 +748,30 @@ int MyOnDiskFS::fuseWrite(const char *path, const char *buf, size_t size, off_t 
 
 		file->size = offset + size;
 		file->firstblock = firstblock;
-
-		return size;
-	} else if ((offset + size) > file->size) {
-		int needed_blocks = (offset + size) / BLOCK_SIZE;
-		int avail_blocks = file->size / BLOCK_SIZE;
-		int num_append = needed_blocks - avail_blocks;
-		int start_block = offset / BLOCK_SIZE;
+	} else {
+		int allocated_blocks = (file->size / BLOCK_SIZE) + 1;
+		int blocks_to_append = needed_blocks - allocated_blocks;
+		int write_start_block = offset / BLOCK_SIZE;
 		int offset_in_block = offset % BLOCK_SIZE;
 
-		if (num_append != 0) {
-			int block = getEmptyBlockChain(num_append);
+		if (blocks_to_append > 0) {
+			int block = getEmptyBlockChain(blocks_to_append);
 			if (block < 0)
 				return block;
-			
 			appendBlock(file->firstblock, block);
 		}
 
-		ret = writeData(start_block, buf, size, offset_in_block);
+		ret = writeData(write_start_block, buf, size, offset_in_block);
 		if (ret < 0)
 			return ret;
 
-		file->size = offset + size;
-	} else {
-		int start_block = offset / BLOCK_SIZE;
-		int offset_in_block = offset % BLOCK_SIZE;
-
-		ret = writeData(start_block, buf, size, offset_in_block);
-		if (ret < 0)
-			return ret;
+		file->size = ((offset + size) > file->size) ? (offset + size) : file->size;
 	}
 
 	syncRoot();
 	syncFAT();
 
 	RETURN((int)size);
-
-    //RETURN(0);
 }
 
 /// @brief Close a file.
