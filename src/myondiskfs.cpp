@@ -14,6 +14,7 @@
 #define DEBUG_METHODS
 #define DEBUG_RETURN_VALUES
 
+#include <assert.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -383,7 +384,6 @@ void MyOnDiskFS::freeFileData(int start_block)
 		fatBuffer[current_block] = EMPTY_BLOCK;
 		current_block = next;
 	}
-	syncFAT();
 }
 
 /// @brief Delete a file.
@@ -408,14 +408,15 @@ int MyOnDiskFS::fuseUnlink(const char *path)
 		return -ENOENT;
 
 	file_ptr = &rootBuffer[index];
-	if (file_ptr->firstblock != EOC_BLOCK)
+	if (file_ptr->firstblock != EOC_BLOCK) {
 		freeFileData(file_ptr->firstblock);
+		syncFAT();
+	}
 
 	memset(file_ptr, 0, sizeof(struct DiskFileInfo));
 
 	syncRoot();
     RETURN(0);
-	//Implemented by Maik 
 }
 
 /// @brief Rename a file.
@@ -661,7 +662,7 @@ int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset,
 		return -ENOBUFS;
 
 	/* offset is out of bounds */
-	if (file->size < offset)
+	if (file->size < (size_t)offset)
 		return -ENOBUFS;
 
 	/* read would be out of bounds */
@@ -678,23 +679,8 @@ int MyOnDiskFS::fuseRead(const char *path, char *buf, size_t size, off_t offset,
 		current_block = fatBuffer[current_block];
 
 	ret = readData(current_block, buf, size, read_offset_in_block);
-	if (ret < 0) {
-		RETURN(int(ret));
-	}
-
-	/*
-	int file_size = file->size;
-	if(file_size < (size + offset)){
-		size = file_size - offset;
-	}
-	int next, blockcount, current_block = file->firstblock;
-	blockcount  = (int) offset / BLOCK_SIZE;
-	for (int i = 0; i < blockcount; i++){
-		next = fatBuffer[current_block];
-		current_block = next;
-	}
-	memcpy(buf, &fatBuffer[current_block]+offset, size);
-	*/
+	if (ret < 0)
+		return ret;
 
 	RETURN((int)size);
 }
@@ -810,6 +796,7 @@ int MyOnDiskFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo)
 int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize)
 {
 	int ret, index;
+	int allocated_blocks, needed_blocks;
 	DiskFileInfo *file;
 
     LOGM();
@@ -824,56 +811,71 @@ int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize)
 
 	file = &rootBuffer[index];
 
-	if (newSize == 0) {
-		if (file->firstblock != EOC_BLOCK) {
-			freeFileData(file->firstblock);
-			file->firstblock = -1;
-		}
-		file->size = 0;
-		return 0;
-	}
-
 	if (file->size == (size_t)newSize)
 		return 0;
 
-	if (newSize > file->size) {
-		int diff = newSize - file->size;
-		int blocks_to_append = diff / BLOCK_SIZE;
-		if (blocks_to_append == 0) {
-			int offset_in_block = file->size % BLOCK_SIZE;
-			if ((offset_in_block + diff) > BLOCK_SIZE)
-				blocks_to_append = 1;
+	if (newSize == 0) {
+		if (file->firstblock != EOC_BLOCK) {
+			freeFileData(file->firstblock);
+			file->firstblock = EOC_BLOCK;
+			syncFAT();
 		}
-		
-		int block = getEmptyBlockChain(blocks_to_append);
-		if (block < 0)
-			return block;
-		if (file->firstblock == -1)
-			file->firstblock = block;
-		else
-			appendBlock(file->firstblock, block);
-
-		file->size = newSize;
+		file->size = 0;
+		syncRoot();
 		return 0;
+	}
+
+	allocated_blocks = (file->size / BLOCK_SIZE) + 1;
+	needed_blocks = (newSize / BLOCK_SIZE) + 1;
+
+	if ((size_t)newSize > file->size) {
+		int blocks_to_append = needed_blocks - allocated_blocks;
+
+		if (file->firstblock == EOC_BLOCK) // file->size = 0
+			blocks_to_append = 1;
+
+		if (blocks_to_append > 0) {
+			int block_chain = getEmptyBlockChain(blocks_to_append);
+			if (block_chain < 0)
+				return ret;
+
+			if (file->firstblock == EOC_BLOCK)
+				file->firstblock = block_chain;
+			else
+				appendBlock(file->firstblock, block_chain);
+		}
+		file->size = newSize;
 	} else {	// newSize < file->size
-		int new_blocks = newSize / BLOCK_SIZE;
-		int blocks_avail = file->size / BLOCK_SIZE;
-		int blocks_to_remove = blocks_avail - newSize;
+		int blocks_to_remove = allocated_blocks - needed_blocks;
+		int current_block, last_block = 0;
+
+		assert(blocks_to_remove >= 0);
 
 		file->size = newSize;
 
-		if (!blocks_to_remove)
+		if (!blocks_to_remove) {
+			syncRoot();
 			return 0;
+		}
 
-		/* should check if file->firstblock == -1 */
-		int current_block = file->firstblock;
+		assert(file->firstblock != EOC_BLOCK);
 
-		for (int block_iter = 0; block_iter < new_blocks; block_iter++)
+		current_block = file->firstblock;
+
+		for (int block_iter = 0; block_iter < needed_blocks; block_iter++) {
 			current_block = fatBuffer[current_block];
-
-		/* i didn't check it thoroughly, might need +1, -1 adjustments */
-		freeFileData(current_block);
+			/* needed_blocks - 2 can be negative, but in that case
+			 * last_block is set to 0, and that would be the correct last_block
+			 */
+			if (block_iter == (needed_blocks - 2))
+				last_block = current_block;
+		}
+		freeFileData(current_block); // remove syncFAT from here
+		fatBuffer[last_block] = EOC_BLOCK;
 	}
+
+	syncFAT();
+	syncRoot();
 
     RETURN(0);
 }
@@ -890,11 +892,14 @@ int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize)
 /// \return 0 on success, -ERRNO on failure.
 int MyOnDiskFS::fuseTruncate(const char *path, off_t newSize, struct fuse_file_info *fileInfo)
 {
+	int ret;
+
     LOGM();
 
     // TODO: [PART 2] Implement this!
+	ret = fuseTruncate(path, newSize);
 
-    RETURN(0);
+    RETURN(ret);
 }
 
 /// @brief Read a directory.
