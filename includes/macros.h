@@ -36,7 +36,14 @@ __LINE__, __func__); } while (0)
 
 #ifdef DEBUG_RETURN_VALUES
 #define RETURN(ret) \
-fprintf(this->logFile, "%s() returned %d\n", __func__, ret); return ret;
+	do { \
+		if (ret < 0) { \
+			char *errs = strerror(ret); \
+			fprintf(this->logFile, "%s() returned %d, str %s\n", __func__, ret, errs); return ret; \
+		} else { \
+			fprintf(this->logFile, "%s() returned %d\n", __func__, ret); return ret; \
+		} \
+	} while(0)
 #else
 #define RETURN(ret) return ret;
 #endif
