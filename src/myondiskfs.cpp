@@ -98,10 +98,10 @@ bool MyOnDiskFS::entryInOneBlock(int fileindex)
 int MyOnDiskFS::getChangedBlockIndex(int fileIndex)
 {
 	//STEP 1: fileIndex * Größe der Struct für DiskFileInfo + rootStart um auf die Position im Container zu kommen
-	//STEP 2: Position % BLOCKSIZE um den Index des Blocks zu bekommen indem die File ist
+	//STEP 2: Position % BLOCKSIZE um den Index des Blocks zu bekommen in dem die File ist
 
     int entryPosition = fileIndex * sizeof(struct DiskFileInfo) + sb.root_start;
-    int index = entryPosition % BLOCK_SIZE;
+    int index = entryPosition / BLOCK_SIZE;
 	return index;
 }
 
@@ -111,8 +111,10 @@ int MyOnDiskFS::getNumChangedBlocks(int fileIndex)
 	//STEP 1: get Position des entries in dem Container (siehe oben)
 	//STEP 2: schauen ob Start des Entries im Block + sizeof(DiskFileInfo) < BLOCK_SIZE wenn ja return 1 else 2
 
-    int entryPosition = getChangedBlockIndex(fileIndex);
-    if(rootBuffer[entryPosition].firstblock + sizeof(DiskFileInfo) < BLOCK_SIZE)
+    int entryPosition = fileIndex * sizeof(struct DiskFileInfo) + sb.root_start;
+    int changedBlockIndex = getChangedBlockIndex(fileIndex);
+    int changedBlockPosition = changedBlockIndex * BLOCK_SIZE;
+    if((sb.root_start + entryPosition - changedBlockPosition) + sizeof(DiskFileInfo) < BLOCK_SIZE)
         return 1;
 
     return 2;
